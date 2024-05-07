@@ -207,8 +207,6 @@ class NSceneV2:
         """
         Calculate the down sample factor
         Factor is used to reduce the vertices count or texture quality
-        If the zoom level is very small large amount of data could be visible inside small screen bounds
-        Rendering everything without down sampling will cause issues and very low fps
 
         Compare screen space bounds with world grid bounds
         """

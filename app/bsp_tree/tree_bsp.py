@@ -81,7 +81,7 @@ class BSPLeaf:
                     self.level + 1
                 ),
                 self.create_child(
-                    self.x + self.w/2,
+                    self.x + self.w / 2,
                     self.y,
                     self.w / 2,
                     self.h,
@@ -105,36 +105,6 @@ class BSPLeaf:
                     self.level + 1
                 )
             ]
-        # self.children = [
-        #     self.create_child(
-        #         self.x,
-        #         self.y,
-        #         self.w / 2,
-        #         self.h / 2,
-        #         self.level+1
-        #     ),
-        #     self.create_child(
-        #         self.x,
-        #         self.y + self.h / 2,
-        #         self.w / 2,
-        #         self.h / 2,
-        #         self.level+1
-        #     ),
-        #     self.create_child(
-        #         self.x + self.w / 2,
-        #         self.y,
-        #         self.w / 2,
-        #         self.h / 2,
-        #         self.level+1
-        #     ),
-        #     self.create_child(
-        #         self.x + self.w / 2,
-        #         self.y + self.h / 2,
-        #         self.w / 2,
-        #         self.h / 2,
-        #         self.level+1
-        #     )
-        # ]
 
     def traverse(self, viewport, visible, not_visible, max_depth=None):
         is_visible, is_fully_visible, contains_viewport = self.is_visible(viewport)
@@ -147,11 +117,11 @@ class BSPLeaf:
         if is_fully_visible:
             visible.append(self)
             return True
-        if self.w < w/4 and self.h < h/4 and is_visible:
+        if self.w < w / 4 and self.h < h / 4 and is_visible:
             visible.append(self)
             return True
         if not self.generated:
-            #print("Leaves loaded",self)
+            # print("Leaves loaded",self)
             self.generate_leaves()
         for c in self.children:
             c.traverse(viewport, visible, not_visible, max_depth)
