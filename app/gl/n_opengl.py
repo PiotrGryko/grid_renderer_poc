@@ -80,7 +80,8 @@ class OpenGLApplication:
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
         self.n_tree.update_viewport(viewport)
-        self.n_net.update_visible_layers(self.n_tree.mega_leaf)
+        if self.n_tree.mega_leaf is not None:
+            self.n_net.update_visible_layers(self.n_tree.mega_leaf)
 
     def start(self, model):
         self.n_window.create_window()
