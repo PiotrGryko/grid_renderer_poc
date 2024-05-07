@@ -27,7 +27,7 @@ class OpenGLApplication:
         self.virtual_memory_usage = 0
         self.frame_count = 0
         self.start_time = 0
-        self.DEBUG = False
+        self.DEBUG = True
 
     def print_memory_usage(self):
         mem_info = self.process.memory_info()
