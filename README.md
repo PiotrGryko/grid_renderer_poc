@@ -1,0 +1,3 @@
+- Mouse scroll to zoom
+- Mouse drag to move the scene
+- Press C to change color
