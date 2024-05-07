@@ -1,3 +1,4 @@
+import math
 import random
 
 from app.bsp_tree.tree_bsp import BSPLeaf, BSPTree
@@ -40,7 +41,6 @@ class NTree(BSPTree):
         self.viewport = viewport
         self.traverse(viewport, visible, not_visible)
         if visible != self.visible_leaves:
-            # print("Visible count: ", len(visible))
             self.visible_leaves = visible
             self.build_mega_leaf()
 
@@ -49,14 +49,18 @@ class NTree(BSPTree):
             self.mega_leaf = None
             return
 
-        x1 = min([v.x1 for v in self.visible_leaves])
-        x2 = max([v.x2 for v in self.visible_leaves])
-        y1 = min([v.y1 for v in self.visible_leaves])
-        y2 = max([v.y2 for v in self.visible_leaves])
+        x1 = int(min([v.x1 for v in self.visible_leaves]))
+        x2 = math.ceil(max([v.x2 for v in self.visible_leaves]))
+        y1 = int(min([v.y1 for v in self.visible_leaves]))
+        y2 = math.ceil(max([v.y2 for v in self.visible_leaves]))
         level = max([v.level for v in self.visible_leaves])
 
+        width = x2 - x1
+        height = y2 - y1
+
         if self.mega_leaf is None:
-            self.mega_leaf = NTreeLeaf(x1, y1, x2 - x1, y2 - y1, level)
+            self.mega_leaf = NTreeLeaf(x1, y1, width, height, level)
+            print("mega leaf created", self.mega_leaf.w, self.mega_leaf.h)
         elif not self.mega_leaf.contains(x1, y1, x2, y2, level):
-            self.mega_leaf = NTreeLeaf(x1, y1, x2 - x1, y2 - y1, level)
+            self.mega_leaf = NTreeLeaf(x1, y1, width, height, level)
             print("mega leaf updated", self.mega_leaf.w, self.mega_leaf.h)

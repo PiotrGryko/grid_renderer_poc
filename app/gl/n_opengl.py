@@ -5,13 +5,12 @@ import OpenGL.GL as gl
 import glfw
 import psutil
 from OpenGL.GL import *
-from transformers import AutoModelForCausalLM
 
+from app.gl.c_color_theme import NColorTheme
 from app.gl.n_net import NNet
 from app.gl.n_scene_v2 import NSceneV2
 from app.gl.n_tree import NTree
 from app.gl.n_window import NWindow
-from app.gl.c_color_theme import NColorTheme
 
 
 class OpenGLApplication:
@@ -83,7 +82,7 @@ class OpenGLApplication:
         self.n_tree.update_viewport(viewport)
         self.n_net.update_visible_layers(self.n_tree.mega_leaf)
 
-    def main(self):
+    def start(self, model):
         self.n_window.create_window()
         self.n_window.set_render_func(self.render)
         self.n_window.set_key_pressed_func(self.on_key_pressed)
@@ -100,10 +99,6 @@ class OpenGLApplication:
         self.n_window.n_color_map_v2_texture_shader.compile_color_map_v2_texture_program()
         self.n_window.n_instances_from_texture_shader.compile_instances_v2_program()
 
-        self.print_memory_usage()
-
-        model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-        model = AutoModelForCausalLM.from_pretrained(model_name)
         self.print_memory_usage()
         self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())])
         self.print_memory_usage()

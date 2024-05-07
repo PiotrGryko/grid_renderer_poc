@@ -86,55 +86,6 @@ class Grid:
                          overlap_y2))
         return result_chunks, result_dimensions
 
-    def get_visible_data_positions_and_values(self, x1, y1, x2, y2, width_factor, height_factor):
-
-        rows_list = []
-        columns_list = []
-        values_list = []
-
-        # Iterate over each subgrid to check for intersections
-        for sublayer in self.visible_layers:
-            grid_x1 = sublayer.column_offset
-            grid_y1 = sublayer.row_offset
-            grid_x2 = grid_x1 + sublayer.columns_count
-            grid_y2 = grid_y1 + sublayer.rows_count
-
-            if self.rectangles_intersect(x1, y1, x2, y2, grid_x1, grid_y1, grid_x2, grid_y2):
-                # Calculate the overlap area
-                overlap_x1 = max(x1, grid_x1)
-                overlap_y1 = max(y1, grid_y1)
-                overlap_x2 = min(x2, grid_x2)
-                overlap_y2 = min(y2, grid_y2)
-
-                if sublayer.layer_grid.ndim == 1:
-                    chunk = sublayer.layer_grid[overlap_y1 - grid_y1:overlap_y2 - grid_y1:height_factor]
-                    chunk_indices = np.where(chunk != self.default_value)
-                    chunk_rows = chunk_indices[0]
-                    chunk_columns = np.full(chunk_rows.size, 1)
-                else:
-                    chunk = sublayer.layer_grid[
-                            overlap_y1 - grid_y1:overlap_y2 - grid_y1:height_factor,
-                            overlap_x1 - grid_x1:overlap_x2 - grid_x1:width_factor]
-                    chunk_indices = np.where(chunk != self.default_value)
-                    chunk_rows, chunk_columns = chunk_indices
-
-                chunk_col_min, chunk_row_min = (overlap_x1, overlap_y1)
-                chunk_values = chunk[chunk_indices]
-                chunk_columns = (chunk_columns * width_factor) + chunk_col_min
-                chunk_rows = (chunk_rows * height_factor) + chunk_row_min
-                rows_list.append(chunk_rows.astype(np.float32, copy=False))
-                columns_list.append(chunk_columns.astype(np.float32, copy=False))
-                values_list.append(chunk_values.astype(np.float32, copy=False))
-
-        if len(values_list) == 0:
-            return np.empty(0, dtype=np.float32), np.empty(0, dtype=np.float32), np.empty(0, dtype=np.float32)
-
-        rows = np.concatenate(rows_list)
-        columns = np.concatenate(columns_list)
-        values = np.concatenate(values_list)
-
-        return rows, columns, values
-
 
 class Layer:
     def __init__(self, layer_grid):
@@ -205,7 +156,7 @@ class NNet:
     def init_grid(self):
         start_time = time.time()
         print(f"Init net, layers count:", len(self.layers))
-        if len(self.layers) ==0:
+        if len(self.layers) == 0:
             return
         max_row_count = max(l.rows_count for l in self.layers)
         gap_between_layers = 200
@@ -279,18 +230,3 @@ class NNet:
         height = math.ceil((row_max - row_min) / factor)
         print("Get grid chunks", (time.time() - start_time) * 1000, "ms", "factor:", factor)
         return chunks, dimensions, width, height
-
-    def get_positions_and_values_array(self, x1, y1, x2, y2, factor):
-
-        start_time = time.time()
-        col_min, row_min, col_max, row_max = self.world_to_grid_position(x1, y1, x2, y2)
-        rows, columns, values = self.grid.get_visible_data_positions_and_values(col_min,
-                                                                                row_min,
-                                                                                col_max,
-                                                                                row_max,
-                                                                                factor,
-                                                                                factor)
-
-        result_array = np.column_stack((columns * self.node_gap_x, rows * self.node_gap_y, values))
-        print("Get grid positions", (time.time() - start_time) * 1000, "ms", "factor:", factor)
-        return result_array

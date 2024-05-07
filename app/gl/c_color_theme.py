@@ -48,7 +48,7 @@ class NColorTheme:
         self.load_cmap(random.randint(0, len(self.cmap_options)))
 
     def next(self):
-        size = len(self.cmap_options)
+        size = len(self.cmap_options)-1
         index = (self.index+1) % size
         self.load_cmap(index)
     def load_cmap(self, index):
