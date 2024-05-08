@@ -27,7 +27,10 @@ class OpenGLApplication:
         self.virtual_memory_usage = 0
         self.frame_count = 0
         self.start_time = 0
-        self.DEBUG = True
+        self.DEBUG = False
+        # TODO
+        self.node_gap = 1.0
+        self.node_radius = 0.2
 
     def print_memory_usage(self):
         mem_info = self.process.memory_info()
@@ -57,11 +60,13 @@ class OpenGLApplication:
 
         self.n_window.n_color_map_v2_texture_shader.use()
         self.n_window.n_color_map_v2_texture_shader.update_projection(self.n_window.get_projection_matrix())
+        # self.n_window.n_color_map_v2_texture_shader.update_node_gap(self.node_gap)
         self.n_window.n_color_map_v2_texture_shader.update_color_map(self.color_theme.name,
                                                                      self.color_theme.color_array)
 
         self.n_window.n_instances_from_texture_shader.use()
         self.n_window.n_instances_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
+        # self.n_window.n_instances_from_texture_shader.update_node_gap(self.node_gap)
         self.n_window.n_instances_from_texture_shader.update_color_map(self.color_theme.name,
                                                                        self.color_theme.color_array)
 
@@ -76,6 +81,19 @@ class OpenGLApplication:
         print("key pressed", key)
         if key == glfw.KEY_C:
             self.color_theme.next()
+        if key == glfw.KEY_Q:
+            pass
+            # self.node_gap = self.node_gap + 0.1
+        if key == glfw.KEY_W:
+            pass
+            # self.node_gap = max(self.node_gap - 0.1, 0.1)
+
+        if key == glfw.KEY_E:
+            self.node_radius = self.node_radius + 0.1
+            self.n_scene.set_node_radius(self.node_radius)
+        if key == glfw.KEY_R:
+            self.node_radius = max(self.node_radius - 0.1, 0.1)
+            self.n_scene.set_node_radius(self.node_radius)
 
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
@@ -105,7 +123,6 @@ class OpenGLApplication:
         self.print_memory_usage()
         # update tree size and depth using grid size
         self.n_tree.set_size(self.n_net.total_width, self.n_net.total_height)
-        # n_tree.load_net_size()
         # calculate min zoom using grid size
         self.n_window.calculate_min_zoom(self.n_net)
         # create level of details

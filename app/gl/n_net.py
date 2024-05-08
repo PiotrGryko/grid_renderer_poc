@@ -112,9 +112,6 @@ class NNet:
         self.total_width = 0
         self.total_height = 0
         self.total_size = 0
-        # self.grid = None
-        self.node_gap_x = 0.2  # 100 / self.n_window.width * 2.0
-        self.node_gap_y = 0.2  # 100 / self.n_window.width * 2.0
         self.grid = Grid()
 
         self.visible_layers = []
@@ -174,14 +171,14 @@ class NNet:
         print("")
         self.grid_columns_count = sum([l.columns_count for l in self.layers]) + gap_between_layers * len(self.layers)
         self.grid_rows_count = max([l.rows_count for l in self.layers])
-        self.total_width = self.grid_columns_count * self.node_gap_x
-        self.total_height = self.grid_rows_count * self.node_gap_y
+        self.total_width = self.grid_columns_count
+        self.total_height = self.grid_rows_count
         self.total_size = sum([l.size for l in self.layers])
         print(f"Grid dimensions: {self.grid_rows_count}x{self.grid_columns_count}")
         self.grid.add_layers(self.layers)
         print("Net initialized", time.time() - start_time, "s",
-              "total size: ", self.total_size,
-              "node gaps: ", self.node_gap_x, self.node_gap_y)
+              "total size: ", self.total_size
+              )
 
     def update_visible_layers(self, leaf):
         x1 = leaf.x1
@@ -189,44 +186,33 @@ class NNet:
         y1 = leaf.y1
         y2 = leaf.y2
 
-        col_min, row_min, col_max, row_max = self.world_to_grid_position(x1, y1, x2, y2)
+        #col_min, row_min, col_max, row_max = self.world_to_grid_position(x1, y1, x2, y2)
+        col_min = x1
+        row_min = y1
+        col_max = x2
+        row_max = y2
         visible = self.grid.get_visible_layers(col_min, row_min, col_max, row_max)
 
         if visible != self.visible_layers:
             self.visible_layers = visible
 
-    def world_to_grid_position(self, x1, y1, x2, y2):
-        node_gap_x = self.node_gap_x
-        node_gap_y = self.node_gap_y
+    # def world_to_grid_position(self, x1, y1, x2, y2):
+    #     node_gap = 1
+    #
+    #     col_min = int(x1 / node_gap)
+    #     col_max = math.ceil(x2 / node_gap)
+    #     row_min = int(y1 / node_gap)
+    #     row_max = math.ceil(y2 / node_gap)
+    #     return (col_min, row_min, col_max, row_max)
 
-        col_min = int(x1 / node_gap_x)
-        col_max = math.ceil(x2 / node_gap_x)
-        row_min = int(y1 / node_gap_y)
-        row_max = math.ceil(y2 / node_gap_y)
-        return (col_min, row_min, col_max, row_max)
-
-    def get_subgrid_chunks_screen_dimensions(self, x1, y1, x2, y2, factor):
+    def get_subgrid_chunks_grid_dimensions(self, col_min, row_min, col_max, row_max , factor):
         start_time = time.time()
-        col_min, row_min, col_max, row_max = self.world_to_grid_position(x1, y1, x2, y2)
-
-        chunks, dimensions, = self.grid.get_visible_data_chunks(col_min, row_min, col_max, row_max,
-                                                                factor,
-                                                                factor)
-        dimensions = [(c1 * self.node_gap_y, r1 * self.node_gap_x, c2 * self.node_gap_y, r2 * self.node_gap_x) for
-                      c1, r1, c2, r2 in dimensions]
-        print("Get grid chunks", (time.time() - start_time) * 1000, "ms", "factor:", factor)
-        return chunks, dimensions
-
-    def get_subgrid_chunks_grid_dimensions(self, x1, y1, x2, y2, factor):
-        start_time = time.time()
-        col_min, row_min, col_max, row_max = self.world_to_grid_position(x1, y1, x2, y2)
+        #col_min, row_min, col_max, row_max = self.world_to_grid_position(x1, y1, x2, y2)
 
         chunks, dimensions, = self.grid.get_visible_data_chunks(col_min, row_min, col_max, row_max,
                                                                 factor,
                                                                 factor,
                                                                 True)
 
-        width = math.ceil((col_max - col_min) / factor)
-        height = math.ceil((row_max - row_min) / factor)
-        print("Get grid chunks", (time.time() - start_time) * 1000, "ms", "factor:", factor)
-        return chunks, dimensions, width, height
+        print("Get grid chunks", (time.time() - start_time) * 1000, "ms", "factor:", factor, "count", len(chunks))
+        return chunks, dimensions

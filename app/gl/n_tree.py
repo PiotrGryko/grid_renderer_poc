@@ -60,7 +60,7 @@ class NTree(BSPTree):
 
         if self.mega_leaf is None:
             self.mega_leaf = NTreeLeaf(x1, y1, width, height, level)
-            print("mega leaf created", self.mega_leaf.w, self.mega_leaf.h)
+            print("mega leaf created",  self.mega_leaf.x, self.mega_leaf.y ,self.mega_leaf.w, self.mega_leaf.h)
         elif not self.mega_leaf.contains(x1, y1, x2, y2, level):
             self.mega_leaf = NTreeLeaf(x1, y1, width, height, level)
-            print("mega leaf updated", self.mega_leaf.w, self.mega_leaf.h)
+            print("mega leaf updated", self.mega_leaf.x, self.mega_leaf.y ,self.mega_leaf.w, self.mega_leaf.h)

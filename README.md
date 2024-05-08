@@ -1,6 +1,8 @@
 - Mouse scroll to zoom
 - Mouse drag to move the scene
 - Press C to change color
+- Press R to reduce node size
+- Press E to enlarge node
 
 Loading hugging face model: 
 

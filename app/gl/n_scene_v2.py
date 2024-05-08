@@ -102,8 +102,18 @@ class EntityV2:
         self.width = 0
         self.height = 0
         self.num_instances = 0
-        self.radius = 0.06
+        self.radius = 0.2
         self.num_segments = 20
+
+    def build_node_vertices(self):
+        vertices = []
+        for i in range(self.num_segments):
+            theta = 2.0 * math.pi * float(i) / float(self.num_segments)
+            x = self.radius * math.cos(theta)
+            y = self.radius * math.sin(theta)
+            vertices.extend([x, y])
+        vertices = np.array(vertices, dtype=np.float32)
+        return vertices
 
     def create_data_container_texture(self, width, height):
         self.texture = gl.glGenTextures(1)
@@ -123,20 +133,13 @@ class EntityV2:
         if error != gl.GL_NO_ERROR:
             print(f"Error loading texture: {error}")
 
-        radius = self.radius
-        vertices = []
-        for i in range(self.num_segments):
-            theta = 2.0 * math.pi * float(i) / float(self.num_segments)
-            x = radius * math.cos(theta)
-            y = radius * math.sin(theta)
-            vertices.extend([x, y])
-        vertices = np.array(vertices, dtype=np.float32)
+        vertices = self.build_node_vertices()
 
         # Instance data for multiple triangles
         self.node_circle_vbo = gl.glGenBuffers(1)
         # Bind the vertex buffer and upload vertex data
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.node_circle_vbo)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, vertices.nbytes, vertices, gl.GL_STATIC_DRAW)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, vertices.nbytes, vertices, gl.GL_DYNAMIC_DRAW)
 
         # Create vertex array object (VAO)
         self.vao = gl.glGenVertexArrays(1)
@@ -152,15 +155,24 @@ class EntityV2:
 
         self.created = True
 
+    def update_node_radius(self, radius):
+        if not self.created:
+            return
+        self.radius = radius
+        vertices = self.build_node_vertices()
+
+        # Bind the vertex buffer and upload vertex data
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.node_circle_vbo)
+        # Update the buffer data
+        gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, vertices.nbytes, vertices)
+
     def update_data(self, chunks, dimensions):
         if not self.created:
             return
         start_time = time.time()
-        # print("update texture data", self.width, self.height, self.num_instances, width, height)
         gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, self.width, self.height, gl.GL_RED, gl.GL_FLOAT, self.empty_img)
         for c, d in zip(chunks, dimensions):
             cx1, cy1, cx2, cy2 = d
-            # print(d)
             gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, cx1, cy1, cx2 - cx1, cy2 - cy1, gl.GL_RED, gl.GL_FLOAT, c)
 
         print("View data updated", time.time() - start_time)
@@ -200,7 +212,7 @@ class NSceneV2:
         self.current_height = 0
 
         self.quad = Quad()
-        self.texture = EntityV2()
+        self.entity = EntityV2()
         self.current_size = 0
 
     def get_details_factor(self):
@@ -211,7 +223,11 @@ class NSceneV2:
         Compare screen space bounds with world grid bounds
         """
         x, y, w, h, zoom = self.n_window.viewport_to_world_cords()
-        col_min, row_min, col_max, row_max = self.n_net.world_to_grid_position(x, y, x + w, y + h)
+        col_min = x
+        row_min = y
+        col_max = x + w
+        row_max = y + h
+
         subgrid_width = col_max - col_min
         subgrid_height = row_max - row_min
 
@@ -220,12 +236,11 @@ class NSceneV2:
 
         width_factor = max(subgrid_width / target_width, 0.1)
         height_factor = max(subgrid_height / target_height, 0.1)
-        # print("dw", subgrid_width, "dh", subgrid_height)
-        # print("tw", target_width, "th", target_height)
-        # print("factor", width_factor, height_factor)
-        # # print("total count", int(target_height*target_width))
         factor = min(width_factor, height_factor)
         return math.ceil(factor)
+
+    def set_node_radius(self, radius):
+        self.entity.update_node_radius(radius)
 
     # @profile
     def update_scene_entities(self):
@@ -245,7 +260,7 @@ class NSceneV2:
 
         if should_update:
             self.current_size = int(self.mega_leaf.w * self.mega_leaf.h)
-            chunks, dimensions, width, height = self.n_net.get_subgrid_chunks_grid_dimensions(
+            chunks, dimensions = self.n_net.get_subgrid_chunks_grid_dimensions(
                 self.mega_leaf.x1,
                 self.mega_leaf.y1,
                 self.mega_leaf.x2,
@@ -257,7 +272,7 @@ class NSceneV2:
                 self.current_width,
                 self.current_height,
             )
-            self.texture.update_data(
+            self.entity.update_data(
                 chunks,
                 dimensions)
 
@@ -266,10 +281,10 @@ class NSceneV2:
                    n_instances_from_texture_shader
                    ):
 
-        if not self.texture.created:
+        if not self.entity.created:
             self.current_width = self.n_window.width * 2
             self.current_height = self.n_window.height * 2
-            self.texture.create_data_container_texture(
+            self.entity.create_data_container_texture(
                 self.current_width,
                 self.current_height
             )
@@ -279,8 +294,8 @@ class NSceneV2:
         # Update
         self.update_scene_entities()
 
-        leaf_w = int(self.mega_leaf.w / 0.2)
-        leaf_h = int(self.mega_leaf.h / 0.2)
+        leaf_w = self.mega_leaf.w
+        leaf_h = self.mega_leaf.h
         size = leaf_w * leaf_h
 
         max_points_count = 1000000
@@ -302,6 +317,6 @@ class NSceneV2:
             n_instances_from_texture_shader.update_position_offset(self.mega_leaf.x1, self.mega_leaf.y1)
             n_instances_from_texture_shader.update_details_factor(self.current_details_level)
             if size < max_nodes_count:
-                self.texture.draw_nodes(size, 1)
+                self.entity.draw_nodes(size, 1)
             elif size < max_points_count:
-                self.texture.draw_points(size)
+                self.entity.draw_points(size)

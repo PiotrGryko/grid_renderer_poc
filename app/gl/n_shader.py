@@ -16,8 +16,8 @@ uniform mat4 projection_matrix;
 uniform sampler1D color_map;
 uniform sampler2D tex1;
 uniform int factor =1;
+uniform float node_gap = 1;
 
-float node_gap = 0.2;
 out vec2 frag_tex_coord;
 
 void main()
@@ -72,8 +72,8 @@ uniform int target_height;
 uniform vec2 position_offset = vec2(0.0, 0.0); 
 uniform mat4 projection_matrix;
 uniform int factor =1;
+uniform float node_gap = 1;
 
-float node_gap = 0.2;
 float color_multiplier = 50;
 
 out vec4 color_value;
@@ -179,6 +179,10 @@ class NShader:
     def update_details_factor(self, details_factor):
         factor = gl.glGetUniformLocation(self.shader_program, "factor")
         gl.glUniform1i(factor, details_factor)
+
+    def update_node_gap(self, gap):
+        node_gap = gl.glGetUniformLocation(self.shader_program, "node_gap")
+        gl.glUniform1f(node_gap, gap)
 
     def update_position_offset(self, x1, y1):
         position_offset = gl.glGetUniformLocation(self.shader_program, "position_offset")
