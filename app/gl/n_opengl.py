@@ -124,7 +124,7 @@ class OpenGLApplication:
         self.n_window.n_instances_from_texture_shader.compile_instances_v2_program()
 
         self.print_memory_usage()
-        self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())[:1]])
+        self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())])
         self.print_memory_usage()
         # update tree size and depth using grid size
         self.n_tree.set_size(self.n_net.total_width, self.n_net.total_height)
