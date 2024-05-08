@@ -223,6 +223,7 @@ class NSceneV2:
         Compare screen space bounds with world grid bounds
         """
         x, y, w, h, zoom = self.n_window.viewport_to_world_cords()
+        # col_min, row_min, col_max, row_max = self.n_net.world_to_grid_position(x, y, x + w, y + h)
         col_min = x
         row_min = y
         col_max = x + w

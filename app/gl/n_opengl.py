@@ -28,7 +28,7 @@ class OpenGLApplication:
         self.frame_count = 0
         self.start_time = 0
         self.DEBUG = False
-        # TODO
+
         self.node_gap = 1.0
         self.node_radius = 0.2
 
@@ -60,13 +60,13 @@ class OpenGLApplication:
 
         self.n_window.n_color_map_v2_texture_shader.use()
         self.n_window.n_color_map_v2_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        # self.n_window.n_color_map_v2_texture_shader.update_node_gap(self.node_gap)
+        self.n_window.n_color_map_v2_texture_shader.update_node_gap(self.node_gap)
         self.n_window.n_color_map_v2_texture_shader.update_color_map(self.color_theme.name,
                                                                      self.color_theme.color_array)
 
         self.n_window.n_instances_from_texture_shader.use()
         self.n_window.n_instances_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        # self.n_window.n_instances_from_texture_shader.update_node_gap(self.node_gap)
+        self.n_window.n_instances_from_texture_shader.update_node_gap(self.node_gap)
         self.n_window.n_instances_from_texture_shader.update_color_map(self.color_theme.name,
                                                                        self.color_theme.color_array)
 
@@ -77,26 +77,31 @@ class OpenGLApplication:
         glfw.swap_buffers(self.n_window.window)
         self.print_memory_usage()
 
+    def set_node_radius(self, radius):
+        self.node_radius = radius
+        self.n_scene.set_node_radius(self.node_radius)
+        print("node radius", self.node_radius)
+
+    def set_node_gap(self, gap):
+        self.node_gap = gap
+        print("node gap", self.node_gap)
+
     def on_key_pressed(self, key):
         print("key pressed", key)
         if key == glfw.KEY_C:
             self.color_theme.next()
         if key == glfw.KEY_Q:
-            pass
-            # self.node_gap = self.node_gap + 0.1
+            self.set_node_gap(self.node_gap + 0.1)
         if key == glfw.KEY_W:
-            pass
-            # self.node_gap = max(self.node_gap - 0.1, 0.1)
-
+            self.set_node_gap(max(self.node_gap - 0.1, 0.1))
         if key == glfw.KEY_E:
-            self.node_radius = self.node_radius + 0.1
-            self.n_scene.set_node_radius(self.node_radius)
+            self.set_node_radius(self.node_radius + 0.1)
         if key == glfw.KEY_R:
-            self.node_radius = max(self.node_radius - 0.1, 0.1)
-            self.n_scene.set_node_radius(self.node_radius)
+            self.set_node_radius(max(self.node_radius - 0.1, 0.1))
 
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
+
         self.n_tree.update_viewport(viewport)
         if self.n_tree.mega_leaf is not None:
             self.n_net.update_visible_layers(self.n_tree.mega_leaf)
@@ -119,7 +124,7 @@ class OpenGLApplication:
         self.n_window.n_instances_from_texture_shader.compile_instances_v2_program()
 
         self.print_memory_usage()
-        self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())])
+        self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())[:1]])
         self.print_memory_usage()
         # update tree size and depth using grid size
         self.n_tree.set_size(self.n_net.total_width, self.n_net.total_height)

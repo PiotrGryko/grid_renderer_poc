@@ -83,16 +83,17 @@ void main()
     
     int selected_width = min(texture_width, target_width);
     int selected_height = min(texture_height, target_height);
-
-    float x = gl_InstanceID % selected_width;
-    float y = gl_InstanceID / selected_width;
+    int scaled_width = int(selected_width / node_gap);
+    float x = gl_InstanceID % scaled_width;
+    float y = gl_InstanceID / scaled_width;
     float value = texelFetch(tex1, ivec2(x, y), 0).r;
-    float entity_factor =  factor;
-    float scaled_x = x * entity_factor;
-    float scaled_y = y * entity_factor;
+    float scaled_x = x * factor;
+    float scaled_y = y * factor;
 
     vec2 instance_position = vec2(scaled_x * node_gap, scaled_y * node_gap);
+    vec2 instance_offset = vec2(position_offset.x / node_gap, position_offset.y / node_gap);
     float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
+    
 
     gl_Position = projection_matrix * vec4(position.xy + instance_position + position_offset, 0.0, 1.0);
     color_value = texture(color_map, intensified_color_value);

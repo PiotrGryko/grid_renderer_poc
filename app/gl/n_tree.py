@@ -13,6 +13,7 @@ class NTreeLeaf(BSPLeaf):
         self.x1, self.y1 = x, y
         self.x2, self.y2 = x + w, y + h
         self.id = f"{x}-{y}-{w}-{h}-{level}"
+        self.gap = None
 
     def dump(self):
         return f'x:{self.x}, y:{self.y}, x2:{self.x2}, y2:{self.y2}, w:{self.w}, h:{self.h}'
@@ -60,7 +61,7 @@ class NTree(BSPTree):
 
         if self.mega_leaf is None:
             self.mega_leaf = NTreeLeaf(x1, y1, width, height, level)
-            print("mega leaf created",  self.mega_leaf.x, self.mega_leaf.y ,self.mega_leaf.w, self.mega_leaf.h)
+            print("mega leaf created", self.mega_leaf.x, self.mega_leaf.y, self.mega_leaf.w, self.mega_leaf.h)
         elif not self.mega_leaf.contains(x1, y1, x2, y2, level):
             self.mega_leaf = NTreeLeaf(x1, y1, width, height, level)
-            print("mega leaf updated", self.mega_leaf.x, self.mega_leaf.y ,self.mega_leaf.w, self.mega_leaf.h)
+            print("mega leaf updated", self.mega_leaf.x, self.mega_leaf.y, self.mega_leaf.w, self.mega_leaf.h)
