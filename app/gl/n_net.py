@@ -196,14 +196,6 @@ class NNet:
         if visible != self.visible_layers:
             self.visible_layers = visible
 
-    # def world_to_grid_position(self, x1, y1, x2, y2):
-    #     node_gap = 1
-    #
-    #     col_min = int(x1 / node_gap)
-    #     col_max = math.ceil(x2 / node_gap)
-    #     row_min = int(y1 / node_gap)
-    #     row_max = math.ceil(y2 / node_gap)
-    #     return (col_min, row_min, col_max, row_max)
 
     def get_subgrid_chunks_grid_dimensions(self, col_min, row_min, col_max, row_max , factor):
         start_time = time.time()

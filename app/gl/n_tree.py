@@ -1,5 +1,6 @@
 import math
 import random
+import time
 
 from app.bsp_tree.tree_bsp import BSPLeaf, BSPTree
 
@@ -13,7 +14,6 @@ class NTreeLeaf(BSPLeaf):
         self.x1, self.y1 = x, y
         self.x2, self.y2 = x + w, y + h
         self.id = f"{x}-{y}-{w}-{h}-{level}"
-        self.gap = None
 
     def dump(self):
         return f'x:{self.x}, y:{self.y}, x2:{self.x2}, y2:{self.y2}, w:{self.w}, h:{self.h}'
@@ -37,9 +37,11 @@ class NTree(BSPTree):
         self.leaf = NTreeLeaf(0, 0, self.width, self.height, 0)
 
     def update_viewport(self, viewport):
+        start_time = time.time()
         visible = []
         not_visible = []
         self.viewport = viewport
+
         self.traverse(viewport, visible, not_visible)
         if visible != self.visible_leaves:
             self.visible_leaves = visible

@@ -16,7 +16,6 @@ uniform mat4 projection_matrix;
 uniform sampler1D color_map;
 uniform sampler2D tex1;
 uniform int factor =1;
-uniform float node_gap = 1;
 
 out vec2 frag_tex_coord;
 
@@ -25,9 +24,8 @@ void main()
     float x = position.x;
     float y = position.y;
 
-    float entity_factor =  factor;    
-    float scaled_x = x * entity_factor * node_gap;
-    float scaled_y = y * entity_factor * node_gap;
+    float scaled_x = x * factor;
+    float scaled_y = y * factor;
 
     vec2 instance_position = vec2(scaled_x, scaled_y);
     gl_Position =  projection_matrix * vec4(instance_position  + position_offset, 0.0, 1.0);
@@ -52,6 +50,7 @@ void main() {
     float value = texture(tex1, frag_tex_coord).r; 
     float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
     vec3 color = texture(color_map, intensified_color_value).rgb;
+    
     fragColor =  vec4(color, 1.0 * fading_factor);
 }
 """
@@ -72,31 +71,29 @@ uniform int target_height;
 uniform vec2 position_offset = vec2(0.0, 0.0); 
 uniform mat4 projection_matrix;
 uniform int factor =1;
-uniform float node_gap = 1;
 
 float color_multiplier = 50;
 
 out vec4 color_value;
+
 
 void main()
 {
     
     int selected_width = min(texture_width, target_width);
     int selected_height = min(texture_height, target_height);
-    int scaled_width = int(selected_width / node_gap);
-    float x = gl_InstanceID % scaled_width;
-    float y = gl_InstanceID / scaled_width;
+    float x = gl_InstanceID % selected_width;
+    float y = gl_InstanceID / selected_width;
     float value = texelFetch(tex1, ivec2(x, y), 0).r;
     float scaled_x = x * factor;
     float scaled_y = y * factor;
 
-    vec2 instance_position = vec2(scaled_x * node_gap, scaled_y * node_gap);
-    vec2 instance_offset = vec2(position_offset.x / node_gap, position_offset.y / node_gap);
+    vec2 instance_position = vec2(scaled_x, scaled_y);
     float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
     
-
-    gl_Position = projection_matrix * vec4(position.xy + instance_position + position_offset, 0.0, 1.0);
+    vec4 pos = projection_matrix * vec4(position.xy + instance_position + position_offset, 0.0, 1.0);
     color_value = texture(color_map, intensified_color_value);
+    gl_Position = pos;
 
 }
 """
@@ -110,8 +107,9 @@ uniform sampler1D color_map;
 in vec4 color_value;
 out vec4 frag_color;
 
+
 void main()
-{
+{  
     frag_color = color_value;
 }
 """
@@ -180,10 +178,6 @@ class NShader:
     def update_details_factor(self, details_factor):
         factor = gl.glGetUniformLocation(self.shader_program, "factor")
         gl.glUniform1i(factor, details_factor)
-
-    def update_node_gap(self, gap):
-        node_gap = gl.glGetUniformLocation(self.shader_program, "node_gap")
-        gl.glUniform1f(node_gap, gap)
 
     def update_position_offset(self, x1, y1):
         position_offset = gl.glGetUniformLocation(self.shader_program, "position_offset")

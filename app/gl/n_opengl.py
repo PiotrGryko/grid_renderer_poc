@@ -10,6 +10,7 @@ from app.gl.c_color_theme import NColorTheme
 from app.gl.n_net import NNet
 from app.gl.n_scene_v2 import NSceneV2
 from app.gl.n_tree import NTree
+from app.gl.n_viewport import NViewport
 from app.gl.n_window import NWindow
 
 
@@ -20,7 +21,8 @@ class OpenGLApplication:
 
         self.n_net = NNet(self.n_window, self.color_theme)
         self.n_tree = NTree(0)
-        self.n_scene = NSceneV2(self.n_tree, self.n_net, self.n_window)
+        self.n_viewport = NViewport(self.n_window, self.n_tree)
+        self.n_scene = NSceneV2(self.n_net, self.n_window, self.n_viewport)
 
         self.process = psutil.Process(os.getpid())
         self.memory_usage = 0
@@ -29,7 +31,6 @@ class OpenGLApplication:
         self.start_time = 0
         self.DEBUG = False
 
-        self.node_gap = 1.0
         self.node_radius = 0.2
 
     def print_memory_usage(self):
@@ -60,13 +61,11 @@ class OpenGLApplication:
 
         self.n_window.n_color_map_v2_texture_shader.use()
         self.n_window.n_color_map_v2_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        self.n_window.n_color_map_v2_texture_shader.update_node_gap(self.node_gap)
         self.n_window.n_color_map_v2_texture_shader.update_color_map(self.color_theme.name,
                                                                      self.color_theme.color_array)
 
         self.n_window.n_instances_from_texture_shader.use()
         self.n_window.n_instances_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        self.n_window.n_instances_from_texture_shader.update_node_gap(self.node_gap)
         self.n_window.n_instances_from_texture_shader.update_color_map(self.color_theme.name,
                                                                        self.color_theme.color_array)
 
@@ -82,18 +81,10 @@ class OpenGLApplication:
         self.n_scene.set_node_radius(self.node_radius)
         print("node radius", self.node_radius)
 
-    def set_node_gap(self, gap):
-        self.node_gap = gap
-        print("node gap", self.node_gap)
-
     def on_key_pressed(self, key):
         print("key pressed", key)
         if key == glfw.KEY_C:
             self.color_theme.next()
-        if key == glfw.KEY_Q:
-            self.set_node_gap(self.node_gap + 0.1)
-        if key == glfw.KEY_W:
-            self.set_node_gap(max(self.node_gap - 0.1, 0.1))
         if key == glfw.KEY_E:
             self.set_node_radius(self.node_radius + 0.1)
         if key == glfw.KEY_R:
@@ -102,9 +93,9 @@ class OpenGLApplication:
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
 
-        self.n_tree.update_viewport(viewport)
-        if self.n_tree.mega_leaf is not None:
-            self.n_net.update_visible_layers(self.n_tree.mega_leaf)
+        self.n_viewport.update_viewport(viewport)
+        if self.n_viewport.visible_data is not None:
+            self.n_net.update_visible_layers(self.n_viewport.visible_data)
 
     def start(self, model):
         self.n_window.create_window()
@@ -127,14 +118,9 @@ class OpenGLApplication:
         self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())])
         self.print_memory_usage()
         # update tree size and depth using grid size
-        self.n_tree.set_size(self.n_net.total_width, self.n_net.total_height)
+        self.n_viewport.set_grid_size(self.n_net.total_width, self.n_net.total_height)
         # calculate min zoom using grid size
         self.n_window.calculate_min_zoom(self.n_net)
-        # create level of details
-
-        # generate tree
-        print("Generating tree")
-        self.n_tree.generate()
         # start render loop
         self.n_window.reset_to_center(self.n_net)
         print("Main loop")

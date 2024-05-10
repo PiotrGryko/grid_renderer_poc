@@ -108,33 +108,6 @@ class NWindow:
         w, h = x2 - x1, y2 - y1
         return (x1, y1, w, h, self.zoom_factor)
 
-    # def viewport_to_world_cords_with_node_gap(self, node_gap_factor):
-    #     '''
-    #     Return the current viewport in world coordinates, adjusted by a scaling factor.
-    #
-    #     :param scale_factor: Factor to adjust the scale of the viewport. Default is 1 (no scaling).
-    #     :return: Tuple of (x1, y1, width, height, zoom_factor) representing the scaled viewport.
-    #     '''
-    #     # Calculate the original corners of the viewport
-    #     x1, y1 = self.projection.window_to_world_point(-1, -1)
-    #     x2, y2 = self.projection.window_to_world_point(1, 1)
-    #
-    #     # Calculate original width and height
-    #     w, h = x2 - x1, y2 - y1
-    #
-    #     # Adjust width and height based on the scale factor
-    #     w_adjusted = w / node_gap_factor
-    #     h_adjusted = h / node_gap_factor
-    #
-    #     # Adjust the center point based on the new width and height
-    #     center_x = (x1 + x2) / 2
-    #     center_y = (y1 + y2) / 2
-    #     x1_adjusted = center_x - w_adjusted / 2
-    #     y1_adjusted = center_y - h_adjusted / 2
-    #
-    #     # Return the adjusted bounds along with the current zoom factor
-    #     return (x1_adjusted, y1_adjusted, w_adjusted, h_adjusted, self.zoom_factor)
-
     def world_coords_to_screen_coords(self, x1, y1, x2, y2):
         '''
         :return: world coordinates (for example x5400:y1300) to screen coords (-1, -1 top left corner, 1,1 top right corner)

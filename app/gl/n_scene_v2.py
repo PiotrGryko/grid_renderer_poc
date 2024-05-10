@@ -115,6 +115,18 @@ class EntityV2:
         vertices = np.array(vertices, dtype=np.float32)
         return vertices
 
+    def build_node_vertices2(self):
+        half_width = self.radius / 2.0
+        half_height = self.radius / 2.0
+        vertices = [
+            -half_width, -half_height,  # Bottom-left
+            half_width, -half_height,  # Bottom-right
+            -half_width, half_height,  # Top-left
+            half_width, half_height  # Top-right
+        ]
+        vertices = np.array(vertices, dtype=np.float32)
+        return vertices
+
     def create_data_container_texture(self, width, height):
         self.texture = gl.glGenTextures(1)
         self.width = width
@@ -175,7 +187,7 @@ class EntityV2:
             cx1, cy1, cx2, cy2 = d
             gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, cx1, cy1, cx2 - cx1, cy2 - cy1, gl.GL_RED, gl.GL_FLOAT, c)
 
-        print("View data updated", time.time() - start_time)
+        print("View data updated", (time.time() - start_time) * 1000, "ms")
 
     def draw_points(self, count):
         if not self.created:
@@ -200,12 +212,12 @@ class EntityV2:
 
 
 class NSceneV2:
-    def __init__(self, n_tree, n_net, n_window):
-        self.n_tree = n_tree
+    def __init__(self, n_net, n_window, n_viewport):
         self.n_net = n_net
         self.n_window = n_window
+        self.n_viewport = n_viewport
 
-        self.mega_leaf = None
+        self.visible_grid_part = None
         self.current_details_level = None
 
         self.current_width = 0
@@ -215,58 +227,28 @@ class NSceneV2:
         self.entity = EntityV2()
         self.current_size = 0
 
-    def get_details_factor(self):
-        """
-        Calculate the down sample factor
-        Factor is used to reduce the vertices count or texture quality
-
-        Compare screen space bounds with world grid bounds
-        """
-        x, y, w, h, zoom = self.n_window.viewport_to_world_cords()
-        # col_min, row_min, col_max, row_max = self.n_net.world_to_grid_position(x, y, x + w, y + h)
-        col_min = x
-        row_min = y
-        col_max = x + w
-        row_max = y + h
-
-        subgrid_width = col_max - col_min
-        subgrid_height = row_max - row_min
-
-        target_width = self.n_window.width
-        target_height = self.n_window.height
-
-        width_factor = max(subgrid_width / target_width, 0.1)
-        height_factor = max(subgrid_height / target_height, 0.1)
-        factor = min(width_factor, height_factor)
-        return math.ceil(factor)
-
     def set_node_radius(self, radius):
         self.entity.update_node_radius(radius)
 
     # @profile
     def update_scene_entities(self):
 
-        if self.n_tree.mega_leaf is None:
+        if self.n_viewport.visible_data is None:
             return
         should_update = False
-        details_level = self.get_details_factor()
 
-        if self.mega_leaf != self.n_tree.mega_leaf:
-            self.mega_leaf = self.n_tree.mega_leaf
-            should_update = True
-
-        if details_level != self.current_details_level:
-            self.current_details_level = details_level
+        if self.visible_grid_part != self.n_viewport.visible_data:
+            self.visible_grid_part = self.n_viewport.visible_data
             should_update = True
 
         if should_update:
-            self.current_size = int(self.mega_leaf.w * self.mega_leaf.h)
+            self.current_size = int(self.visible_grid_part.w * self.visible_grid_part.h)
             chunks, dimensions = self.n_net.get_subgrid_chunks_grid_dimensions(
-                self.mega_leaf.x1,
-                self.mega_leaf.y1,
-                self.mega_leaf.x2,
-                self.mega_leaf.y2,
-                self.current_details_level)
+                self.visible_grid_part.x1,
+                self.visible_grid_part.y1,
+                self.visible_grid_part.x2,
+                self.visible_grid_part.y2,
+                self.visible_grid_part.factor)
             self.quad.update_quad_position(
                 0,
                 0,
@@ -295,19 +277,19 @@ class NSceneV2:
         # Update
         self.update_scene_entities()
 
-        leaf_w = self.mega_leaf.w
-        leaf_h = self.mega_leaf.h
+        leaf_w = self.visible_grid_part.w
+        leaf_h = self.visible_grid_part.h
         size = leaf_w * leaf_h
 
-        max_points_count = 1000000
+        max_points_count = 1500000
         max_nodes_count = 500000
 
         if size >= max_points_count:
             n_color_map_v2_texture_shader.use()
             n_color_map_v2_texture_shader.update_texture_width(self.current_width)
             n_color_map_v2_texture_shader.update_texture_height(self.current_height)
-            n_color_map_v2_texture_shader.update_position_offset(self.mega_leaf.x1, self.mega_leaf.y1)
-            n_color_map_v2_texture_shader.update_details_factor(self.current_details_level)
+            n_color_map_v2_texture_shader.update_position_offset(self.visible_grid_part.x1, self.visible_grid_part.y1)
+            n_color_map_v2_texture_shader.update_details_factor(self.visible_grid_part.factor)
             self.quad.draw()
         else:
             n_instances_from_texture_shader.use()
@@ -315,8 +297,8 @@ class NSceneV2:
             n_instances_from_texture_shader.update_texture_height(self.current_height)
             n_instances_from_texture_shader.update_target_width(leaf_w)
             n_instances_from_texture_shader.update_target_height(leaf_h)
-            n_instances_from_texture_shader.update_position_offset(self.mega_leaf.x1, self.mega_leaf.y1)
-            n_instances_from_texture_shader.update_details_factor(self.current_details_level)
+            n_instances_from_texture_shader.update_position_offset(self.visible_grid_part.x1, self.visible_grid_part.y1)
+            n_instances_from_texture_shader.update_details_factor(self.visible_grid_part.factor)
             if size < max_nodes_count:
                 self.entity.draw_nodes(size, 1)
             elif size < max_points_count:
