@@ -73,8 +73,7 @@ def get_visible_chunk_accelerated(x1, y1, x2, y2,
 
 @jit(nopython=True, cache=True)
 def get_visible_layers_accelerated(layers_properties, x1, y1, x2, y2):
-    visible_layers_indexes_2d = []
-    visible_layers_indexes_1d = []
+    visible_layers_indexes = []
     for index, props in enumerate(layers_properties):
         column_offset, row_offset, columns_count, rows_count = props
         grid_x1 = column_offset
@@ -82,11 +81,8 @@ def get_visible_layers_accelerated(layers_properties, x1, y1, x2, y2):
         grid_x2 = grid_x1 + columns_count
         grid_y2 = grid_y1 + rows_count
         if rectangles_intersect(x1, y1, x2, y2, grid_x1, grid_y1, grid_x2, grid_y2):
-            if rows_count == 1 or columns_count == 1:
-                visible_layers_indexes_1d.append(index)
-            else:
-                visible_layers_indexes_2d.append(index)
-    return visible_layers_indexes_2d, visible_layers_indexes_1d
+            visible_layers_indexes.append(index)
+    return visible_layers_indexes
 
 
 class NumbaGrid:
@@ -105,7 +101,7 @@ class NumbaGrid:
             ))
 
     def get_visible_layers(self, x1, y1, x2, y2):
-        self.visible_layers_indexes, indexes_1d = get_visible_layers_accelerated(self.layers_properties, x1, y1, x2, y2)
+        self.visible_layers_indexes = get_visible_layers_accelerated(self.layers_properties, x1, y1, x2, y2)
 
     def get_visible_data_chunks(self, x1, y1, x2, y2, width_factor, height_factor, grid_space=False):
         result_chunks = []
