@@ -1,4 +1,5 @@
 import OpenGL.GL as gl
+import numpy as np
 
 # manage shaders
 
@@ -16,6 +17,7 @@ uniform mat4 projection_matrix;
 uniform sampler1D color_map;
 uniform sampler2D tex1;
 uniform int factor =1;
+uniform float node_gap = 1;
 
 out vec2 frag_tex_coord;
 
@@ -24,8 +26,8 @@ void main()
     float x = position.x;
     float y = position.y;
 
-    float scaled_x = x * factor;
-    float scaled_y = y * factor;
+    float scaled_x = x * factor * node_gap;
+    float scaled_y = y * factor * node_gap;
 
     vec2 instance_position = vec2(scaled_x, scaled_y);
     gl_Position =  projection_matrix * vec4(instance_position  + position_offset, 0.0, 1.0);
@@ -59,7 +61,10 @@ instances_v2_vertex_shader_source = """
 #version 330 core
 
 layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 quad;
+layout(location = 2) in vec2 tex_coord;
 uniform sampler1D color_map;
+uniform sampler2D billboard;
 uniform sampler2D tex1;
 
 uniform int texture_width;
@@ -71,10 +76,12 @@ uniform int target_height;
 uniform vec2 position_offset = vec2(0.0, 0.0); 
 uniform mat4 projection_matrix;
 uniform int factor =1;
+uniform float node_gap = 1;
 
 float color_multiplier = 50;
 
 out vec4 color_value;
+out vec2 frag_tex_coord;
 
 
 void main()
@@ -88,12 +95,13 @@ void main()
     float scaled_x = x * factor;
     float scaled_y = y * factor;
 
-    vec2 instance_position = vec2(scaled_x, scaled_y);
+    vec2 instance_position = vec2(scaled_x * node_gap, scaled_y * node_gap);
     float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
     
     vec4 pos = projection_matrix * vec4(position.xy + instance_position + position_offset, 0.0, 1.0);
     color_value = texture(color_map, intensified_color_value);
     gl_Position = pos;
+    frag_tex_coord = tex_coord;
 
 }
 """
@@ -106,11 +114,126 @@ uniform float fading_factor = 1.0f;
 uniform sampler1D color_map;
 in vec4 color_value;
 out vec4 frag_color;
-
+in vec2 frag_tex_coord;
 
 void main()
 {  
     frag_color = color_value;
+}
+"""
+
+billboards_v2_vertex_shader_source = """
+#version 330 core
+
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 quad;
+layout(location = 2) in vec2 tex_coord;
+uniform sampler1D color_map;
+uniform sampler2D billboard;
+uniform sampler2D tex1;
+
+uniform int texture_width;
+uniform int texture_height;
+
+uniform int target_width;
+uniform int target_height;
+
+uniform vec2 position_offset = vec2(0.0, 0.0); 
+uniform vec2 mouse_position = vec2(0.0, 0.0); 
+uniform mat4 projection_matrix;
+uniform int factor =1;
+uniform float node_gap = 1;
+
+float color_multiplier = 50;
+
+out vec2 frag_tex_coord;
+
+out vec4 color_value;
+out vec4 default_color_value;
+out float empty =0;
+out float hover =0;
+flat out vec4 hover_point;
+
+
+void main()
+{
+
+    int selected_width = min(texture_width, target_width);
+    int selected_height = min(texture_height, target_height);
+    float x = gl_InstanceID % selected_width;
+    float y = gl_InstanceID / selected_width;
+    
+    float value = texelFetch(tex1, ivec2(x, y), 0).r;
+    
+    float scaled_x = x * factor;
+    float scaled_y = y * factor;
+    
+    vec2 instance_position = vec2(scaled_x, scaled_y);
+    gl_Position = projection_matrix * vec4(quad.xy + instance_position + position_offset, 0.0, 1.0);
+    frag_tex_coord = tex_coord;
+    
+
+    float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
+    color_value = texture(color_map, intensified_color_value);
+    default_color_value = texture(color_map, 0);
+    
+    vec2 quad_center_in_world_space = instance_position + position_offset + vec2(0.5,0.5);
+    float mouse_distance = distance(quad_center_in_world_space, mouse_position);
+    if (mouse_distance < 0.5) {  
+        hover = 1;
+        hover_point = projection_matrix * vec4(mouse_position, 0, 1);
+    } else {
+        hover = 0;
+        hover_point = vec4(0);  // Default or indicative value
+    }
+    if(value == 0)
+    {
+        empty = 1;
+    }
+
+}
+"""
+# Fragment shader source code for drawing instances
+billboards_v2_fragment_shader_source = """
+#version 330 core
+
+uniform float fading_factor = 1.0f;
+uniform sampler1D color_map;
+uniform sampler2D billboard;
+in vec4 color_value;
+in vec4 default_color_value;
+out vec4 frag_color;
+in vec2 frag_tex_coord;
+in float empty;
+in float hover;
+flat in vec4 hover_point;
+
+void main()
+{  
+    if(empty == 1){
+        frag_color = default_color_value;
+    }
+    else{
+        vec2 center = vec2(0.5, 0.5);  // Center in texture coordinates
+        float radius = 0.5;  // Smaller radius to keep the circle away from the edge
+
+        float distanceFromCenter = distance(frag_tex_coord, center); // Calculate the distance
+        float intensity = 1.0 - (distanceFromCenter / radius);  // Adjust intensity based on smaller radius
+        intensity = clamp(intensity, 0.0, 1.0);  // Ensure intensity stays within valid range
+        
+        
+        vec4 color = color_value;
+        vec4 hover_color = vec4(0.0, 0.5, 1.0, 1.0);
+        if(hover == 1){
+            color = hover_color;
+        }
+        if (intensity > 0) {
+            color = vec4(color.xyz * 3 * intensity, 1.0);  
+        } else {
+            color = default_color_value; 
+        }
+        frag_color = color;
+    }
 }
 """
 
@@ -121,6 +244,7 @@ class NShader:
         self.shader_version = None
         self.current_cmap_name = None
         self.colorMapTextureID = None
+        self.billboardID = None
 
     def use(self):
         gl.glUseProgram(self.shader_program)
@@ -128,10 +252,12 @@ class NShader:
         # assign shader tex1 and tex2 to openGl texture. gl.GL_TEXTURE1 and gl.GL_TEXTURE2
         text_uniform = gl.glGetUniformLocation(self.shader_program, "color_map")
         gl.glUniform1i(text_uniform, 0)
+        text_uniform = gl.glGetUniformLocation(self.shader_program, "billboard")
+        gl.glUniform1i(text_uniform, 1)
         text_uniform1 = gl.glGetUniformLocation(self.shader_program, "tex1")
-        gl.glUniform1i(text_uniform1, 1)
+        gl.glUniform1i(text_uniform1, 2)
         text_uniform2 = gl.glGetUniformLocation(self.shader_program, "tex2")
-        gl.glUniform1i(text_uniform2, 2)
+        gl.glUniform1i(text_uniform2, 3)
 
     def update_color_map(self, cmap_name, color_values):
         if self.current_cmap_name == cmap_name:
@@ -139,6 +265,7 @@ class NShader:
         # Generate and bind the texture
         if self.colorMapTextureID is None:
             self.colorMapTextureID = gl.glGenTextures(1)
+        gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_1D, self.colorMapTextureID)
 
         # color_values = np.clip(color_values * 50, 0, 255)
@@ -150,6 +277,25 @@ class NShader:
         gl.glTexParameteri(gl.GL_TEXTURE_1D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
         gl.glTexParameteri(gl.GL_TEXTURE_1D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
         self.current_cmap_name = cmap_name
+
+    def update_cell_billboard(self):
+        if self.billboardID is not None:
+            return
+            # Generate and bind the texture
+        if self.billboardID is None:
+            self.billboardID = gl.glGenTextures(1)
+        gl.glActiveTexture(gl.GL_TEXTURE1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.billboardID)
+
+        # color_values = np.clip(color_values * 50, 0, 255)
+        # Upload the 1D color map data
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_R32F, 48, 48, 0, gl.GL_RED, gl.GL_FLOAT,
+                        np.ones((48, 48), dtype=np.float32))
+
+        # Set texture parameters
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
 
     def update_projection(self, projection_matrix):
         projection_matrix_uniform = gl.glGetUniformLocation(self.shader_program, "projection_matrix")
@@ -183,11 +329,22 @@ class NShader:
         position_offset = gl.glGetUniformLocation(self.shader_program, "position_offset")
         gl.glUniform2f(position_offset, x1, y1)
 
+    def update_mouse_position(self, x1, y1):
+        mouse_position = gl.glGetUniformLocation(self.shader_program, "mouse_position")
+        gl.glUniform2f(mouse_position, x1, y1)
+
+    def update_node_gap(self, gap):
+        node_gap = gl.glGetUniformLocation(self.shader_program, "node_gap")
+        gl.glUniform1f(node_gap, gap)
+
     def compile_color_map_v2_texture_program(self):
         self.compile(cmap_v2_texture_vertex_shader_source, cmap_v2_texture_fragment_shader_source)
 
     def compile_instances_v2_program(self):
         self.compile(instances_v2_vertex_shader_source, instances_v2_fragment_shader_source)
+
+    def compile_billboards_v2_program(self):
+        self.compile(billboards_v2_vertex_shader_source, billboards_v2_fragment_shader_source)
 
     def compile(self, vertex_shader_source, fragment_shader_source):
         self.shader_version = gl.glGetString(gl.GL_SHADING_LANGUAGE_VERSION)

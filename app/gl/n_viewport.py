@@ -9,11 +9,24 @@ class VisibleGrid:
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
-        self.w = self.x2 - self.x1
-        self.h = self.y2 - self.y1
+        self.w = max(0, self.x2 - self.x1)
+        self.h = max(0, self.y2 - self.y1)
         self.id = f"{x1}-{y1}-{x2}-{y2}-{factor}"
         self.factor = factor
+        self.offset_x = x1
+        self.offset_y = y1
 
+        #
+        #
+        # self.scaled_x1 = int(x1 / node_gap)
+        # self.scaled_y1 = int(y1 / node_gap)
+        # self.scaled_x2 = math.ceil(x2 / node_gap)
+        # self.scaled_y2 = math.ceil(y2 / node_gap)
+        # self.scaled_w = max(0,self.scaled_x2 - self.scaled_x1)
+        # self.scaled_h = max(0,self.scaled_y2 - self.scaled_y1)
+        #
+        # self.scaled_offset_x = self.scaled_x1 * node_gap
+        # self.scaled_offset_y = self.scaled_y1 * node_gap
         self.bsp_leaf_id = None
 
     def contains(self, x1, y1, x2, y2, factor):
@@ -30,14 +43,15 @@ class VisibleGrid:
 
 
 class NViewport:
-    def __init__(self, n_window, n_tree):
-        self.n_window = n_window
+    def __init__(self, n_tree, buffer_w, buffer_h):
         self.visible_data = None
         self.n_tree = n_tree
         self.x1 = 0
         self.y1 = 0
         self.x2 = 0
         self.y2 = 0
+        self.buffer_w = buffer_w
+        self.buffer_h = buffer_h
 
         self.use_bsp = False
 
@@ -62,21 +76,21 @@ class NViewport:
         col_max = x + w
         row_max = y + h
 
-        subgrid_width = col_max - col_min
-        subgrid_height = row_max - row_min
+        subgrid_width = (col_max - col_min)
+        subgrid_height = (row_max - row_min)
 
-        target_width = self.n_window.width
-        target_height = self.n_window.height
+        target_width = self.buffer_w
+        target_height = self.buffer_h
 
         width_factor = max(subgrid_width / target_width, 0.1)
         height_factor = max(subgrid_height / target_height, 0.1)
-        factor = min(width_factor, height_factor)
+        factor = max(width_factor, height_factor)
         return math.ceil(factor)
 
     def update_viewport(self, viewport):
 
         # Legacy solution
-        # Calculating visible grid bounds from viewport is less expensive than traversing the bsp tree
+        # Calculating grid bounds from viewport is less expensive than traversing the bsp tree
         if self.use_bsp:
             self.n_tree.update_viewport(viewport)
             if self.n_tree.mega_leaf is None:
@@ -92,6 +106,8 @@ class NViewport:
                     factor)
                 self.visible_data.bsp_leaf_id = self.n_tree.mega_leaf.id
             return
+
+        # Grid bounds from viewport
 
         start_time = time.time()
         x, y, w, h, zoom = viewport

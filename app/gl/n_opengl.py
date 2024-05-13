@@ -16,13 +16,17 @@ from app.gl.n_window import NWindow
 
 class OpenGLApplication:
     def __init__(self):
+
+        self.buffer_width = 1280
+        self.buffer_height = 1280
+
         self.n_window = NWindow()
         self.color_theme = NColorTheme()
 
         self.n_net = NNet(self.n_window, self.color_theme)
         self.n_tree = NTree(0)
-        self.n_viewport = NViewport(self.n_window, self.n_tree)
-        self.n_scene = NSceneV2(self.n_net, self.n_window, self.n_viewport)
+        self.n_viewport = NViewport(self.n_tree, self.buffer_width, self.buffer_height)
+        self.n_scene = NSceneV2(self.n_net, self.n_viewport, self.buffer_width, self.buffer_height)
 
         self.process = psutil.Process(os.getpid())
         self.memory_usage = 0
@@ -32,6 +36,7 @@ class OpenGLApplication:
         self.DEBUG = False
 
         self.node_radius = 0.2
+        self.node_gap = 1.0
 
     def print_memory_usage(self):
         mem_info = self.process.memory_info()
@@ -59,19 +64,40 @@ class OpenGLApplication:
                 self.start_time = time.time()
                 print(fps_text)
 
+        mouse_x_ndc, mouse_y_ndc = self.n_window.window_to_world_cords(
+            self.n_window.last_mouse_x,
+            self.n_window.last_mouse_y
+        )
+        # print(
+        #     mouse_x_ndc, mouse_y_ndc
+        # )
         self.n_window.n_color_map_v2_texture_shader.use()
         self.n_window.n_color_map_v2_texture_shader.update_projection(self.n_window.get_projection_matrix())
+        self.n_window.n_color_map_v2_texture_shader.update_mouse_position(mouse_x_ndc,
+                                                                          mouse_y_ndc)
         self.n_window.n_color_map_v2_texture_shader.update_color_map(self.color_theme.name,
                                                                      self.color_theme.color_array)
 
         self.n_window.n_instances_from_texture_shader.use()
         self.n_window.n_instances_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
+        self.n_window.n_instances_from_texture_shader.update_mouse_position(mouse_x_ndc,
+                                                                            mouse_y_ndc)
+        self.n_window.n_instances_from_texture_shader.update_cell_billboard()
         self.n_window.n_instances_from_texture_shader.update_color_map(self.color_theme.name,
                                                                        self.color_theme.color_array)
 
+        self.n_window.n_billboards_from_texture_shader.use()
+        self.n_window.n_billboards_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
+        self.n_window.n_billboards_from_texture_shader.update_cell_billboard()
+        self.n_window.n_billboards_from_texture_shader.update_mouse_position(mouse_x_ndc,
+                                                                             mouse_y_ndc)
+        self.n_window.n_billboards_from_texture_shader.update_color_map(self.color_theme.name,
+                                                                        self.color_theme.color_array)
+
         self.n_scene.draw_scene(
             self.n_window.n_color_map_v2_texture_shader,
-            self.n_window.n_instances_from_texture_shader
+            self.n_window.n_instances_from_texture_shader,
+            self.n_window.n_billboards_from_texture_shader
         )
         glfw.swap_buffers(self.n_window.window)
         self.print_memory_usage()
@@ -83,6 +109,12 @@ class OpenGLApplication:
 
     def on_key_pressed(self, key):
         print("key pressed", key)
+        # if key == glfw.KEY_Q:
+        #     pass
+        #     self.node_gap = self.node_gap + 0.01
+        # if key == glfw.KEY_W:
+        #     pass
+        #     self.node_gap = max(self.node_gap - 0.01, 0.1)
         if key == glfw.KEY_C:
             self.color_theme.next()
         if key == glfw.KEY_E:
@@ -113,6 +145,7 @@ class OpenGLApplication:
 
         self.n_window.n_color_map_v2_texture_shader.compile_color_map_v2_texture_program()
         self.n_window.n_instances_from_texture_shader.compile_instances_v2_program()
+        self.n_window.n_billboards_from_texture_shader.compile_billboards_v2_program()
 
         self.print_memory_usage()
         self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())])
@@ -129,3 +162,4 @@ class OpenGLApplication:
 
         gl.glDeleteProgram(self.n_window.n_color_map_v2_texture_shader.shader_program)
         gl.glDeleteProgram(self.n_window.n_instances_from_texture_shader.shader_program)
+        gl.glDeleteProgram(self.n_window.n_billboards_from_texture_shader.shader_program)

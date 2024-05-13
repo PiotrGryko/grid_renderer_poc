@@ -1,5 +1,6 @@
 import OpenGL.GL as gl
 import glfw
+import numpy as np
 
 from app.gl.n_projection import Projection
 from app.gl.n_shader import NShader
@@ -26,16 +27,17 @@ class NWindow:
         self.formatted_zoom = None
 
         self.n_instances_from_texture_shader = NShader()
+        self.n_billboards_from_texture_shader = NShader()
         self.n_color_map_v2_texture_shader = NShader()
 
     def calculate_min_zoom(self, n_net):
         content_width, content_height = n_net.total_width, n_net.total_height
-        w, h = self.window_to_normalized_cords(self.width, self.height)
+        w, h = self.window_to_viewport_cords(self.width, self.height)
         min_zoom_x = w / content_width / 1.2
         min_zoom_y = h / content_height / 1.2
         self.min_zoom = min_zoom_x if min_zoom_x < min_zoom_y else min_zoom_y
         self.zoom_factor = self.min_zoom  # current zoom value
-        self.zoom_step = (self.max_zoom - self.min_zoom) / 10000  # zoom step change on every mouse wheel scroll
+        self.zoom_step = (self.max_zoom - self.min_zoom) / 100  # zoom step change on every mouse wheel scroll
         self.mouse_scroll_callback(self.window, 1, 1)
         print(w, h, content_width, content_height)
         print("Min zoom calculated:", self.min_zoom, self.max_zoom, self.zoom_step)
@@ -92,10 +94,39 @@ class NWindow:
     def get_projection_matrix(self):
         return self.projection.matrix
 
-    def window_to_normalized_cords(self, x, y):
+    def window_to_viewport_cords(self, x, y):
+        """
+        window space (1280x1280) to viewport coords [0-2] with [1,1] at the center
+        :param x:
+        :param y:
+        :return:
+        """
         sx = x / self.width * 2.0
         sy = y / self.height * 2.0
         return sx, sy
+
+    def window_to_normalized_cords(self, x, y):
+        """
+        window space (1280x1280) to NDC [-1,1] with [0,0] at the center
+        :param x:
+        :param y:
+        :return:
+        """
+        sx = (2.0 * x) / self.width - 1.0
+        sy = (2.0 * y) / self.height - 1
+        return sx, sy
+
+    def window_to_world_cords(self, x, y):
+        """
+        window space (1280x1280) to NDC [-1,1] with [0,0] at the center
+        :param x:
+        :param y:
+        :return:
+        """
+        sx = (2.0 * x) / self.width - 1.0
+        sy = (2.0 * y) / self.height - 1
+        wx, wy = self.projection.window_to_world_point(sx,sy)
+        return wx, wy
 
     def viewport_to_world_cords(self):
         '''
@@ -161,13 +192,18 @@ class NWindow:
     def mouse_scroll_callback(self, window, x_offset, y_offset):
 
         delta = - y_offset * self.zoom_step
-        self.zoom_factor += delta
+        new_zoom = np.log(self.zoom_factor) + delta  # Logarithmically adjust zoom
+        new_zoom = np.exp(new_zoom)  # Convert logarithmic scale back to linear scale
+        self.zoom_factor = new_zoom
+
         if self.zoom_factor <= self.min_zoom:
             self.zoom_factor = self.min_zoom
+        if self.zoom_factor >= self.max_zoom:
+            self.zoom_factor = self.max_zoom
 
         mx = self.last_mouse_x - self.width / 2
         my = self.last_mouse_y - self.height / 2
-        zoom_x, zoom_y = self.window_to_normalized_cords(mx, my)
+        zoom_x, zoom_y = self.window_to_viewport_cords(mx, my)
         self.projection.zoom(zoom_x, zoom_y, self.zoom_factor)
         self.on_viewport_updated()
 
