@@ -42,14 +42,20 @@ def get_visible_chunk_accelerated(x1, y1, x2, y2,
         overlap_y1 = max(y1, grid_y1)
         overlap_x2 = min(x2, grid_x2)
         overlap_y2 = min(y2, grid_y2)
+
         if layer_grid.ndim == 1:
+            # Ensure consistent start for subsampling
+            start_index_y = (overlap_y1 - grid_y1) % height_factor
             # Direct slicing and subsampling in one step
-            subgrid_slice = layer_grid[overlap_y1 - grid_y1:overlap_y2 - grid_y1:height_factor]
+            subgrid_slice = layer_grid[(overlap_y1 - grid_y1 - start_index_y):overlap_y2 - grid_y1:height_factor]
         else:
+            # Ensure consistent start for subsampling in both dimensions
+            start_index_y = (overlap_y1 - grid_y1) % height_factor
+            start_index_x = (overlap_x1 - grid_x1) % width_factor
             # For 2D arrays, perform slicing and subsampling for both dimensions in one step
             subgrid_slice = layer_grid[
-                            overlap_y1 - grid_y1:overlap_y2 - grid_y1:height_factor,
-                            overlap_x1 - grid_x1:overlap_x2 - grid_x1:width_factor]
+                            (overlap_y1 - grid_y1 - start_index_y):overlap_y2 - grid_y1:height_factor,
+                            (overlap_x1 - grid_x1 - start_index_x):overlap_x2 - grid_x1:width_factor]
         if grid_space:
             shape = subgrid_slice.shape
             h = unpack_h(shape)
@@ -89,7 +95,6 @@ class NumbaGrid:
     def __init__(self):
         self.layers_data = []
         self.layers_properties = []
-        self.default_value = -2
         self.visible_layers_indexes = []
         print("Numba grid created")
 
@@ -144,15 +149,7 @@ class NumbaLayer:
         self.row_offset = row_offset
         self.id = f"{self.column_offset}-{self.row_offset}-{self.columns_count}-{self.rows_count}-{self.size}"
 
-
-
-
-
-
-
-
 ############### Maybe for later
-
 
 
 # @jit(nopython=True, cache=True)
@@ -272,4 +269,3 @@ class NumbaLayer:
 #                      overlap_x2,
 #                      overlap_y2))
 #     return result_chunks, result_dimensions
-

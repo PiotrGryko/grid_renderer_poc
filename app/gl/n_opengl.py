@@ -25,8 +25,8 @@ class OpenGLApplication:
 
         self.n_net = NNet(self.n_window, self.color_theme)
         self.n_tree = NTree(0)
-        self.n_viewport = NViewport(self.n_tree, self.buffer_width, self.buffer_height)
-        self.n_scene = NSceneV2(self.n_net, self.n_viewport, self.buffer_width, self.buffer_height)
+        self.n_viewport = NViewport(self.n_tree, self.n_net, self.buffer_width, self.buffer_height)
+        self.n_scene = NSceneV2(self.n_net, self.n_viewport, self.n_window, self.buffer_width, self.buffer_height)
 
         self.process = psutil.Process(os.getpid())
         self.memory_usage = 0
@@ -73,6 +73,7 @@ class OpenGLApplication:
         # )
         self.n_window.n_color_map_v2_texture_shader.use()
         self.n_window.n_color_map_v2_texture_shader.update_projection(self.n_window.get_projection_matrix())
+        self.n_window.n_color_map_v2_texture_shader.update_quad_matrix(self.n_window.get_quad_projection_matrix())
         self.n_window.n_color_map_v2_texture_shader.update_mouse_position(mouse_x_ndc,
                                                                           mouse_y_ndc)
         self.n_window.n_color_map_v2_texture_shader.update_color_map(self.color_theme.name,
@@ -108,19 +109,28 @@ class OpenGLApplication:
         print("node radius", self.node_radius)
 
     def on_key_pressed(self, key):
-        print("key pressed", key)
+        #print("key pressed", key)
         # if key == glfw.KEY_Q:
         #     pass
         #     self.node_gap = self.node_gap + 0.01
         # if key == glfw.KEY_W:
         #     pass
         #     self.node_gap = max(self.node_gap - 0.01, 0.1)
+        if key == glfw.KEY_UP:
+            for i in range(20):
+                #time.sleep(0.001)
+                self.n_window.mouse_scroll_callback(None,None,-0.1)
+        if key == glfw.KEY_DOWN:
+            self.n_window.mouse_scroll_callback(None,None,1)
         if key == glfw.KEY_C:
             self.color_theme.next()
         if key == glfw.KEY_E:
             self.set_node_radius(self.node_radius + 0.1)
         if key == glfw.KEY_R:
             self.set_node_radius(max(self.node_radius - 0.1, 0.1))
+        if key == glfw.KEY_Z:
+            self.n_scene.switch_unit()
+
 
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
@@ -132,6 +142,7 @@ class OpenGLApplication:
     def start(self, model):
         self.n_window.create_window()
         self.n_window.set_render_func(self.render)
+        self.n_window.set_key_repeat_func(self.on_key_pressed)
         self.n_window.set_key_pressed_func(self.on_key_pressed)
         self.n_window.set_viewport_updated_func(self.on_viewport_updated)
         glEnable(GL_DEPTH_TEST)

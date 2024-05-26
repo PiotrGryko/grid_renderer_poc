@@ -6,5 +6,5 @@ if __name__ == "__main__":
     app = OpenGLApplication()
 
     model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name, local_files_only = True)
     app.start(model)

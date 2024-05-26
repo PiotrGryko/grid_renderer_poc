@@ -23,6 +23,7 @@ class NWindow:
         self.render_func = None
         self.viewport_updated_func = None
         self.key_pressed_func = None
+        self.key_repeat_func = None
         self.zoom_percent = 0
         self.formatted_zoom = None
 
@@ -88,11 +89,17 @@ class NWindow:
     def set_key_pressed_func(self, key_pressed_func):
         self.key_pressed_func = key_pressed_func
 
+    def set_key_repeat_func(self, key_repeat_func):
+        self.key_repeat_func = key_repeat_func
+
     def set_viewport_updated_func(self, viewport_updated_func):
         self.viewport_updated_func = viewport_updated_func
 
     def get_projection_matrix(self):
         return self.projection.matrix
+
+    def get_quad_projection_matrix(self):
+        return self.projection.quad_matrix
 
     def window_to_viewport_cords(self, x, y):
         """
@@ -177,6 +184,10 @@ class NWindow:
         if action == glfw.PRESS:
             if self.key_pressed_func:
                 self.key_pressed_func(key)
+
+        if action == glfw.REPEAT:
+            if self.key_repeat_func:
+                self.key_repeat_func(key)
 
     def window_refresh_callback(self, window):
         if self.render_func:

@@ -1,3 +1,10 @@
+import math
+import time
+
+import numpy as np
+from numba import njit, jit
+
+
 def unpack_shape(array):
     shape = array.shape
     if len(shape) == 1:
@@ -5,10 +12,28 @@ def unpack_shape(array):
     return shape[0], shape[1]
 
 
-class NumpyGrid:
+@jit
+def mean_numba(arr):
+    return np.sum(arr) / arr.size
+
+class NumpyAverageGrid:
     def __init__(self):
         self.layers = []
         self.visible_layers = []
+
+        # import timeit
+        #
+        # arr = np.random.rand(100000000)
+        #
+        # # np.mean
+        # print(timeit.timeit('np.mean(arr)', setup='import numpy as np; arr = np.random.rand(1000000)', number=1000))
+        #
+        # # np.sum / arr.size
+        # print(timeit.timeit('np.sum(arr) / arr.size', setup='import numpy as np; arr = np.random.rand(1000000)',
+        #                     number=1000))
+        # start_time = time.time()
+        # tmp = mean_numba(arr)
+        # print("Numba result", time.time() - start_time)
 
     def add_layers(self, layers):
         self.layers = layers
@@ -37,7 +62,6 @@ class NumpyGrid:
     def get_visible_data_chunks(self, x1, y1, x2, y2, width_factor, height_factor, grid_space=False):
         result_chunks = []
         result_dimensions = []
-
         # Iterate over each subgrid to check for intersections
         for sublayer in self.visible_layers:
             grid_x1 = sublayer.column_offset
@@ -51,24 +75,50 @@ class NumpyGrid:
                 overlap_y1 = max(y1, grid_y1)
                 overlap_x2 = min(x2, grid_x2)
                 overlap_y2 = min(y2, grid_y2)
+
+                #
+                #
                 if sublayer.layer_grid.ndim == 1:
-                    # Ensure consistent start for subsampling
-                    start_index_y = (overlap_y1 - grid_y1) % height_factor
                     # Direct slicing and subsampling in one step
-                    subgrid_slice = sublayer.layer_grid[
-                                    (overlap_y1 - grid_y1 - start_index_y):overlap_y2 - grid_y1:height_factor]
+                    target_height = ((overlap_y2 - grid_y1) - (overlap_y1 - grid_y1))
+                    start_index_y = target_height % height_factor
+                    subgrid_slice = sublayer.layer_grid[(overlap_y1 - grid_y1):(overlap_y2 - grid_y1 - start_index_y)]
+                    collapsed_grid = np.average(subgrid_slice.reshape(-1, height_factor), axis=1)
+                    # padded_grid.reshape((padded_grid.shape[0] // height_factor, height_factor)).mean(axis=1)
                 else:
-                    # Ensure consistent start for subsampling in both dimensions
-                    start_index_y = (overlap_y1 - grid_y1) % height_factor
-                    start_index_x = (overlap_x1 - grid_x1) % width_factor
+
                     # For 2D arrays, perform slicing and subsampling for both dimensions in one step
+
+                    target_height = ((overlap_y2 - grid_y1) - (overlap_y1 - grid_y1))
+                    target_width = ((overlap_x2 - grid_x1) - (overlap_x1 - grid_x1))
+
+                    start_index_y = target_height % height_factor
+                    start_index_x = target_width % width_factor
+                    #
+                    # print(
+                    #     (overlap_y2 - grid_y1 - overlap_y1 - grid_y1),
+                    #     (overlap_x2 - grid_x1 - overlap_x1 - grid_x1)
+                    # )
+                    # print(target_height, target_width)
+                    # print(start_index_x, start_index_y)
                     subgrid_slice = sublayer.layer_grid[
-                                    (overlap_y1 - grid_y1 - start_index_y):overlap_y2 - grid_y1:height_factor,
-                                    (overlap_x1 - grid_x1 - start_index_x):overlap_x2 - grid_x1:width_factor]
-                #print(unpack_shape(subgrid_slice), width_factor)
-                result_chunks.append(subgrid_slice)
+                                    (overlap_y1 - grid_y1):(overlap_y2 - grid_y1 - start_index_y),
+                                    (overlap_x1 - grid_x1):(overlap_x2 - grid_x1 - start_index_x)]
+
+                    oh, ow = unpack_shape(subgrid_slice)
+                    h = oh / width_factor
+                    w = ow / height_factor
+                    if w == 0 or h == 0:
+                        continue
+                    print("shape", oh, ow, h, w, "factor", width_factor, subgrid_slice.shape)
+
+                    collapsed_grid = np.average(
+                        subgrid_slice.reshape((int(h), height_factor,
+                                               int(w), width_factor)), axis=(1, 3))
+
+                result_chunks.append(collapsed_grid)
                 if grid_space:
-                    h, w = unpack_shape(subgrid_slice)
+                    h, w = unpack_shape(collapsed_grid)
                     dx1 = int((overlap_x1 - x1) / width_factor)
                     dy1 = int((overlap_y1 - y1) / height_factor)
                     result_dimensions.append(
