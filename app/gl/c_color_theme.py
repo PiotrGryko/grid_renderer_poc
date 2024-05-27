@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 
 class NColorTheme:
     def __init__(self):
+        self.color_high = None
         self.index = None
         self.color_array = None
         self.cmap = None
@@ -49,14 +50,21 @@ class NColorTheme:
 
     def next(self):
         size = len(self.cmap_options)
-        index = (self.index+1) % size
+        index = (self.index + 1) % size
         self.load_cmap(index)
+
+    def load_by_name(self, name):
+        index = self.cmap_options.index(name)
+        self.load_cmap(index)
+
     def load_cmap(self, index):
-        index = min(index, len(self.cmap_options)-1)
+        index = min(index, len(self.cmap_options) - 1)
         self.index = index
         self.name = self.cmap_options[self.index]
         self.cmap = plt.cm.get_cmap(self.name)
         self.color_low = self.cmap(-1)
+        self.color_high = self.cmap(0.9)
+
 
         num_colors = 255
         values = np.linspace(0, 1, num_colors)  # Generate 255 evenly spaced values between 0 and 1

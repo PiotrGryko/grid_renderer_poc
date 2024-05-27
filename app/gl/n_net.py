@@ -1,6 +1,8 @@
+import json
 import math
 import os
 import time
+import re
 
 import numpy as np
 import psutil
@@ -21,17 +23,6 @@ class NNet:
         self.grid = create_grid()
         self.visible_layers = []
 
-        self.process = psutil.Process(os.getpid())
-        self.memory_usage = 0
-        self.virtual_memory_usage = 0
-
-    def print_memory_usage(self):
-        mem_info = self.process.memory_info()
-        usage = f"{mem_info.rss / (1024 * 1024 * 1024):.2f}"
-        if self.memory_usage != usage:
-            self.memory_usage = usage
-            print(f"Memory usage: {self.memory_usage} GB (Resident Set Size)")
-
     def init_from_size(self, all_layers_sizes):
         print("Init net from sizes")
         layers = []
@@ -47,15 +38,63 @@ class NNet:
         self.create_layers(layers)
         self.init_grid()
 
-    def init_from_tensors(self, tensors):
+    def init_from_last_memory_files(self):
+        layers = []
+        files = os.listdir("memfile")
+
+        def numerical_sort_key(value):
+            # Find all sequences of digits in the string and convert the first one to an integer
+            numbers = re.findall(r'\d+', value)
+            return int(numbers[0]) if numbers else 0
+
+        files.sort(key=numerical_sort_key)
+        for index, file_name in enumerate(files):
+            print(f"\rParsing memfile: {int(100 * index / len(files))}%", end="")
+            if file_name.endswith(".dat"):
+                file_name = f"memfile/{file_name}"
+                print(file_name)
+                metadata_file_name = f"{file_name}.json"
+                with open(metadata_file_name, 'r') as meta_file:
+                    metadata = json.load(meta_file)
+
+                shape = tuple(metadata["shape"])
+                dtype = np.dtype(metadata["dtype"])
+                memmap = np.memmap(file_name, dtype=dtype, mode='r', shape=shape)
+                layers.append(memmap)
+        self.create_layers(layers)
+        self.init_grid()
+
+    def init_from_tensors(self, tensors, save_to_memfile=False):
         print("Init net from tensors")
         start_time = time.time()
         size = len(tensors)
         layers = []
         print("")
+
+
         for index, tensor in enumerate(tensors):
             print(f"\rDetaching tensors: {int(100 * index / size)}%", end="")
-            layers.append(tensor.detach().numpy())
+            tensor_numpy = tensor.detach().numpy()
+            layers.append(tensor_numpy)
+
+            if save_to_memfile:
+                # Create a memory-mapped file
+                file_name = f"memfile/tensor{index}.dat"
+                os.makedirs("memfile", exist_ok=True)
+                memmap = np.memmap(file_name, dtype=tensor_numpy.dtype, mode='w+', shape=tensor_numpy.shape)
+                # Write the tensor data to the memory-mapped file
+                memmap[:] = tensor_numpy[:]
+                # Flush changes to disk
+                memmap.flush()
+
+                metadata_file_name = f"{file_name}.json"
+                metadata = {
+                    "shape": tensor_numpy.shape,
+                    "dtype": str(tensor_numpy.dtype)
+                }
+                with open(metadata_file_name, 'w') as meta_file:
+                    json.dump(metadata, meta_file)
+
         print(f"\rDetaching tensors: 100%", time.time() - start_time, "s", end="")
         print("")
         self.create_layers(layers)
@@ -117,5 +156,4 @@ class NNet:
                                                                 True)
 
         print("Get grid chunks", (time.time() - start_time) * 1000, "ms", "factor:", factor, "count", len(chunks))
-        self.print_memory_usage()
         return chunks, dimensions

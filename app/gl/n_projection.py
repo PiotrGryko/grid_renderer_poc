@@ -31,22 +31,6 @@ class Projection:
              1.0]
         ], dtype=np.float32)
 
-        self.quad_matrix = self.matrix = np.array([
-            [1.0,
-             0.0,
-             0.0,
-             0.0],
-            [0.0,
-             1.0,
-             0.0,
-             0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0,
-             0.0,
-             0.0,
-             1.0]
-        ], dtype=np.float32)
-
     def window_to_world_point(self, x, y):
         # Map window point in [-1,1] cords to world cords
         # Usage example: node_position = window_to_world_point(mouse_position)
@@ -118,76 +102,3 @@ class Projection:
 
         result = translation_matrix_1 @ zoom_matrix @ translation_matrix_2
         self.matrix = self.matrix @ result
-
-    def ndc_to_viewport(self):
-        # Create a scaling matrix
-        scale_matrix = np.array([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0]
-        ], dtype=np.float32)
-
-        # Create a translation matrix
-        translation_matrix = np.array([
-            [1.0, 0.0, 0.0, 1.0],
-            [0.0, 1.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0]
-        ], dtype=np.float32)
-
-        # Combine the matrices
-        transformation_matrix = scale_matrix @ translation_matrix
-        return transformation_matrix
-
-    def build_difference_matrix(self, vx1, vy1, vx2, vy2, vviewport,
-                                px1, py1, px2, py2, pviewport):
-        # vx1, vy1, vx2, vy2, vzoom = vviewport
-        # px1, py1, px2, py2, pzoom = pviewport
-        vzoom = vviewport[4]
-        pzoom = pviewport[4]
-
-        current_zoom = vzoom
-        zoom_factor = pzoom / current_zoom
-
-        offset_x = (px1 - vx1) / (vx2 - vx1)
-        offset_y = (py1 - vy1) / (vy2 - vy1)
-
-        print("current",vx1,vy1,vx2,vy2)
-        print("previous", px1, py1, px2, py2)
-        print("offset",offset_x, offset_y)
-
-        sx = -offset_x
-        sy = -offset_y
-
-
-        print("first translation ", sx, sy)
-        translation_matrix_1 = np.array([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [sx, sy, 0.0, 1.0]
-        ])
-
-        # Step 2: Apply zoom
-        zoom_matrix = np.array([
-            [zoom_factor, 0.0, 0.0, 0.0],
-            [0.0, zoom_factor, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0]
-        ])
-
-        sx = 0
-        sy = 0
-        print("second translation ", sx, sy)
-        # Step 3: Translate back to original translation
-        translation_matrix_2 = np.array([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [sx, sy, 0.0, 1.0]
-        ])
-
-        result = translation_matrix_1 @ zoom_matrix  # @ translation_matrix_2
-        self.quad_matrix = result
-        return result

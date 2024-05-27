@@ -486,8 +486,8 @@ class NSceneV2:
         factor_delta = self.n_viewport.current_factor_delta
 
         n_color_map_v2_texture_shader.use()
-        current_alpha = factor_delta if factor == 1 else 1  # if self.zooming_in else factor_delta
-        prev_alpha = factor_delta if factor == 1 else factor_delta if self.zooming_in else 1 - factor_delta
+        current_alpha = factor_delta if factor == 1 else 1 # if self.zooming_in else factor_delta
+        prev_alpha = 0 if not self.zooming_in else factor_delta if factor == 1 else factor_delta
 
         if self.current_entity == self.entity2:
 
@@ -578,7 +578,7 @@ class NSceneV2:
         max_nodes_count = 500000
         factor = self.n_viewport.current_factor
 
-        if factor == 1:
+        if size < max_nodes_count:
             self.draw_billboards(n_billboards_from_texture_shader, size)
 
         self.draw_textures(n_color_map_v2_texture_shader)

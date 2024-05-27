@@ -1,5 +1,6 @@
 import OpenGL.GL as gl
 import glfw
+import imgui
 import numpy as np
 
 from app.gl.n_projection import Projection
@@ -31,6 +32,7 @@ class NWindow:
         self.n_billboards_from_texture_shader = NShader()
         self.n_color_map_v2_texture_shader = NShader()
 
+
     def calculate_min_zoom(self, n_net):
         content_width, content_height = n_net.total_width, n_net.total_height
         w, h = self.window_to_viewport_cords(self.width, self.height)
@@ -60,6 +62,13 @@ class NWindow:
         # Make the created window's context current
 
         glfw.make_context_current(self.window)
+
+
+        # Check if window creation succeeded
+        if not self.window:
+            glfw.terminate()
+            raise ValueError("Failed to create GLFW window")
+    def set_callbacks(self):
         glfw.set_framebuffer_size_callback(self.window, self.frame_buffer_size_callback)
         glfw.set_scroll_callback(self.window, self.mouse_scroll_callback)
         glfw.set_cursor_pos_callback(self.window, self.mouse_position_callback)
@@ -67,19 +76,16 @@ class NWindow:
         glfw.set_window_refresh_callback(self.window, self.window_refresh_callback)
         glfw.set_key_callback(self.window, self.window_key_callback)
 
-        # Check if window creation succeeded
-        if not self.window:
-            glfw.terminate()
-            raise ValueError("Failed to create GLFW window")
-
     def start_main_loop(self):
-        while not glfw.window_should_close(self.window):
+        while not glfw .window_should_close(self.window):
             if glfw.get_key(self.window, glfw.KEY_ESCAPE) == glfw.PRESS:
                 glfw.set_window_should_close(self.window, True)
             if self.render_func:
                 self.render_func()
             glfw.poll_events()
 
+    def close_window(self):
+        glfw.set_window_should_close(self.window,True)
     def destroy_window(self):
         glfw.terminate()
 
@@ -97,9 +103,6 @@ class NWindow:
 
     def get_projection_matrix(self):
         return self.projection.matrix
-
-    def get_quad_projection_matrix(self):
-        return self.projection.quad_matrix
 
     def window_to_viewport_cords(self, x, y):
         """
@@ -181,6 +184,9 @@ class NWindow:
             self.viewport_updated_func()
 
     def window_key_callback(self, window, key, scancode, action, mods):
+        io = imgui.get_io()
+        if io.want_capture_keyboard:
+            return
         if action == glfw.PRESS:
             if self.key_pressed_func:
                 self.key_pressed_func(key)
@@ -201,6 +207,9 @@ class NWindow:
         self.on_viewport_updated()
 
     def mouse_scroll_callback(self, window, x_offset, y_offset):
+        io = imgui.get_io()
+        if io.want_capture_mouse:
+            return
 
         delta = - y_offset * self.zoom_step
         new_zoom = np.log(self.zoom_factor) + delta  # Logarithmically adjust zoom
@@ -225,6 +234,9 @@ class NWindow:
             print("zoom: ", formatted)
 
     def mouse_button_callback(self, window, button, action, mods):
+        io = imgui.get_io()
+        if io.want_capture_mouse:
+            return
         if button == glfw.MOUSE_BUTTON_RIGHT:
             if action == glfw.PRESS:
                 pass
@@ -235,6 +247,9 @@ class NWindow:
                 self.dragging = False
 
     def mouse_position_callback(self, window, xpos, ypos):
+        io = imgui.get_io()
+        if io.want_capture_mouse:
+            return
         xpos, ypos = xpos, self.height - ypos
         if not self.dragging:
             self.last_mouse_x = xpos
