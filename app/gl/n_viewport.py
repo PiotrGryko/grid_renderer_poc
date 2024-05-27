@@ -105,21 +105,15 @@ class NViewport:
             lower_power = 2 ** math.floor(math.log2(factor))
             higher_power = lower_power * 2
 
-            if higher_power <=1:
+            if higher_power <= 1:
                 higher_power = 1
                 lower_power = 0.1
-            #
-            # if higher_power > 32:
-            #     higher_power = (factor//32) * 32
-            # print(higher_power, factor//32)
             self.current_factor = math.ceil(higher_power)
             self.current_factor_delta = (factor - lower_power) / (higher_power - lower_power)
-            #print(higher_power, lower_power, self.current_factor_delta)
 
         else:
             self.current_factor = math.ceil(factor)
             self.current_factor_delta = factor - math.ceil(factor)
-
 
         return self.current_factor, self.current_factor_delta
 

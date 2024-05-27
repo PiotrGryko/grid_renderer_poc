@@ -427,7 +427,10 @@ class NSceneV2:
 
         if should_update:
             print("should update")
-            if self.current_entity == self.entity1:
+
+            if self.current_entity == self.entity2 and self.entity2.visible_grid_part.factor == current_quad.factor:
+                self.should_update_prev = True
+            if self.current_entity == self.entity1 and self.entity1.visible_grid_part.factor != current_quad.factor:
                 self.should_update_prev = True
 
             if self.should_update_prev:
@@ -444,6 +447,14 @@ class NSceneV2:
                     self.entity2.visible_grid_part.offset_y,
                     self.entity2.visible_grid_part.factor
                 )
+                if self.entity1.visible_grid_part is not None:
+                    self.entity2.quad.update_second_texture_coordinates(
+                        self.current_width,
+                        self.current_height,
+                        self.entity2.visible_grid_part,
+                        self.entity1.visible_grid_part,
+                        self.n_window
+                    )
                 self.current_entity = self.entity2
                 self.zooming_in = self.entity2.visible_grid_part.zoom > self.entity1.visible_grid_part.zoom
 
@@ -463,59 +474,37 @@ class NSceneV2:
                 self.current_entity = self.entity1
                 if self.entity2.visible_grid_part is not None:
                     self.zooming_in = self.entity1.visible_grid_part.zoom > self.entity2.visible_grid_part.zoom
-                # if self.entity2.visible_grid_part is not None:
-                #     self.entity1.quad.update_second_texture_coordinates(
-                #         self.current_width,
-                #         self.current_height,
-                #         self.entity1.visible_grid_part,
-                #         self.entity2.visible_grid_part,
-                #         self.n_window
-                #     )
-                # self.entity2.quad.update_second_texture_coordinates(
-                #     self.current_width,
-                #     self.current_height,
-                #     self.entity2.visible_grid_part,
-                #     self.entity1.visible_grid_part,
-                #     self.n_window
-                # )
+                if self.entity2.visible_grid_part is not None:
+                    self.entity1.quad.update_second_texture_coordinates(
+                        self.current_width,
+                        self.current_height,
+                        self.entity1.visible_grid_part,
+                        self.entity2.visible_grid_part,
+                        self.n_window
+                    )
 
-                print(self.zooming_in)
-
-    def draw_textures(self, n_color_map_v2_texture_shader):
+    def draw_textures(self, n_color_map_v2_texture_shader, should_fade):
         factor = self.n_viewport.current_factor
         factor_delta = self.n_viewport.current_factor_delta
 
         n_color_map_v2_texture_shader.use()
-        current_alpha = factor_delta if factor == 1 else 1 # if self.zooming_in else factor_delta
-        prev_alpha = 0 if not self.zooming_in else factor_delta if factor == 1 else factor_delta
+        mix_factor = factor_delta if self.zooming_in else 1 - factor_delta
+        alpha_factor = mix_factor if should_fade else 1
 
         if self.current_entity == self.entity2:
-
             n_color_map_v2_texture_shader.select_texture(1)
-            n_color_map_v2_texture_shader.update_fading_factor(current_alpha)
+            n_color_map_v2_texture_shader.mix_textures(mix_factor)
+            n_color_map_v2_texture_shader.update_fading_factor(alpha_factor)
             gl.glActiveTexture(self.entity2.gl_texture_unit)
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.entity2.texture)
             self.entity2.draw_texture()
-
-            n_color_map_v2_texture_shader.select_texture(0)
-            n_color_map_v2_texture_shader.update_fading_factor(prev_alpha)
-            gl.glActiveTexture(self.entity1.gl_texture_unit)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, self.entity1.texture)
-            self.entity1.draw_texture()
-
         else:
-
             n_color_map_v2_texture_shader.select_texture(0)
-            n_color_map_v2_texture_shader.update_fading_factor(current_alpha)
+            n_color_map_v2_texture_shader.mix_textures(mix_factor)
+            n_color_map_v2_texture_shader.update_fading_factor(alpha_factor)
             gl.glActiveTexture(self.entity1.gl_texture_unit)
             gl.glBindTexture(gl.GL_TEXTURE_2D, self.entity1.texture)
             self.entity1.draw_texture()
-            #
-            n_color_map_v2_texture_shader.select_texture(1)
-            n_color_map_v2_texture_shader.update_fading_factor(prev_alpha)
-            gl.glActiveTexture(self.entity2.gl_texture_unit)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, self.entity2.texture)
-            self.entity2.draw_texture()
 
     def draw_points(self, n_instances_from_texture_shader, size):
         n_instances_from_texture_shader.use()
@@ -572,13 +561,14 @@ class NSceneV2:
         # Update
         self.update_scene_entities()
 
-        size = self.current_entity.visible_grid_part.w * self.current_entity.visible_grid_part.h
-
         max_points_count = 1500000
         max_nodes_count = 500000
+
+        size = self.current_entity.visible_grid_part.w * self.current_entity.visible_grid_part.h
+
         factor = self.n_viewport.current_factor
 
-        if size < max_nodes_count:
+        if size< max_nodes_count:
             self.draw_billboards(n_billboards_from_texture_shader, size)
 
-        self.draw_textures(n_color_map_v2_texture_shader)
+        self.draw_textures(n_color_map_v2_texture_shader, size < max_nodes_count)

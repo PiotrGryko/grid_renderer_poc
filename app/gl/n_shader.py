@@ -14,18 +14,6 @@ layout(location = 1) in vec2 tex_coord;
 layout(location = 2) in vec2 prev_tex_coord;
 
 uniform mat4 projection_matrix;
-uniform mat4 quad_matrix;
-uniform sampler1D color_map;
-uniform float node_gap = 1;
-
-uniform vec2 position_offset_one = vec2(0.0, 0.0); 
-uniform vec2 size_one = vec2(0.0, 0.0); 
-uniform int factor_one =1;
-
-uniform vec2 position_offset_two = vec2(0.0, 0.0); 
-uniform vec2 size_two = vec2(0.0, 0.0); 
-uniform int factor_two =1;
-
 uniform float tex_unit = 0; // 0 or 1 
 
 out vec2 frag_tex_coord_one;
@@ -34,58 +22,11 @@ out vec2 frag_tex_coord_two;
 
 void main()
 {
-   
-    // float scaled_x_one = position.x * factor_one * node_gap;
-    // float scaled_y_one = position.y * factor_one * node_gap;
-    // vec2 instance_position_one = vec2(scaled_x_one, scaled_y_one);
-    
-    // float scaled_x_two = position.x * factor_two * node_gap;
-    // float scaled_y_two = position.y * factor_two * node_gap;
-    // vec2 instance_position_two = vec2(scaled_x_two, scaled_y_two);
-    
-    //vec4 scaled_factor_one = projection_matrix * vec4(instance_position_one  + position_offset_one,0.0,1.0);
-    //vec4 scaled_factor_two = projection_matrix * vec4(instance_position_two  + position_offset_two,0.0,1.0);
-
-    // float factor_x =  scaled_factor_one.x/scaled_factor_two.x; 
-    // float factor_y =  scaled_factor_one.y/scaled_factor_two.y; 
-    
-    //float factor_x =  scaled_factor_one.x/scaled_factor_two.x; 
-    //float factor_y =  scaled_factor_one.y/scaled_factor_two.y; 
-    
-    //vec4 mapped_offset_one = projection_matrix * vec4(position_offset_one,0.0,1.0);
-    //vec4 mapped_offset_two = projection_matrix * vec4(position_offset_two,0.0,1.0);
-    
-    // float offset_x =  (scaled_factor_one.x-scaled_factor_two.x) / 1; 
-    // float offset_y =  (scaled_factor_one.y-scaled_factor_two.y) / 1; 
-    
-    // float offset_x = (mapped_offset_one.x- mapped_offset_two.x) /2;
-    // float offset_y =  (mapped_offset_one.y- mapped_offset_two.y) /2;
-    
-    //vec2 offset = ( position_offset_one / (size_one)) - (position_offset_two/ (size_two));
-    
-    //float offset_x = (scaled_factor_two.x- scaled_factor_two.x);
-    //float offset_y =  (scaled_factor_two.y- scaled_factor_two.y);
-    
-    // frag_tex_coord_two = vec2(offset_x,offset_y) + vec2(factor_x * tex_coord.x, factor_y * tex_coord.y);
-    
-    //if(tex_unit==0){
-    //    frag_tex_coord_one = tex_coord;
-    //    frag_tex_coord_two = prev_tex_coord;
-    //}else{
-    //    frag_tex_coord_one = prev_tex_coord;
-    //    frag_tex_coord_two = tex_coord;
-    //}
-
-    // frag_tex_coord_two = offset + tex_coord;
-    // frag_tex_coord_two = vec2(factor_x * tex_coord.x, factor_y * tex_coord.y);
-    // frag_tex_coord_two = tex_coord;
-    // frag_tex_coord_two = (quad_matrix * vec4(tex_coord.xy,0.0,1.0)).xy;
-    // gl_Position =  projection_matrix * vec4(position + instance_position_one  + position_offset_one,0.0,1.0);
-
+    // current quad
     frag_tex_coord_one = tex_coord;
+    // prev quad mapped to current
     frag_tex_coord_two = prev_tex_coord;
     gl_Position =  projection_matrix * vec4(position,0.0,1.0);
-
 }
 """
 # Fragment shader source code for drawing instances
@@ -97,6 +38,7 @@ uniform sampler2D tex1;
 uniform sampler2D tex2;
 uniform float fading_factor = 0;
 uniform float tex_unit = 0; // 0 or 1 
+uniform float tex_mix_factor = 0; // from 0 to 1 
  
 in vec2 frag_tex_coord_one;
 in vec2 frag_tex_coord_two;
@@ -109,25 +51,32 @@ vec3 gammaCorrection(vec3 color, float gamma) {
 }
 
 void main() {
-    float value_one = texture(tex1, frag_tex_coord_one).r; 
-    float value_two = texture(tex2, frag_tex_coord_two).r; 
-    float value =   mix(value_one, value_two, tex_unit);
+    float base_value;
+    float prev_value;
     
-    if(value == -1){
+    if(tex_unit==0){
+         // current quad using tex1
+         base_value = texture(tex1, frag_tex_coord_one).r; 
+         prev_value = texture(tex2, frag_tex_coord_two).r; 
+    }else{
+         // current quad using tex2
+         base_value = texture(tex2, frag_tex_coord_one).r; 
+         prev_value = texture(tex1, frag_tex_coord_two).r; 
+    }
+
+    float intensified_color_value;
+    if(base_value == -1){
         fragColor = vec4(0,0,0,0);
     }
     else{
-        float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
+        if(prev_value == 0 || prev_value == -1){
+            intensified_color_value = clamp(base_value  * color_multiplier, 0, 1);
+        }else{
+            intensified_color_value = clamp(mix(base_value, prev_value, tex_mix_factor)  * color_multiplier, 0, 1);
+        }
+        
         vec3 color = texture(color_map, intensified_color_value).rgb;
         fragColor = vec4(color,fading_factor);
-        // vec3 color = mix(color_one, color_two, tex_unit);
-        // color = clamp(color, 0.0, 1.0);
-        
-        // vec3 color = mix(color_one, color_two, fading_factor);
-        // color = gammaCorrection(color, 1.0 / 2.2);
-        // float value =   mix(intensified_color_value_one, intensified_color_value_two, fading_factor);
-        // vec3 color = texture(color_map, intensified_value).rgb;
-
      }
 }
 """
@@ -395,6 +344,10 @@ class NShader:
     def select_texture(self, index):
         tex_unit = gl.glGetUniformLocation(self.shader_program, "tex_unit")
         gl.glUniform1f(tex_unit, index)
+
+    def mix_textures(self, factor):
+        tex_mix_factor = gl.glGetUniformLocation(self.shader_program, "tex_mix_factor")
+        gl.glUniform1f(tex_mix_factor, factor)
 
     def update_texture_width(self, width):
         texture_width = gl.glGetUniformLocation(self.shader_program, "texture_width")
