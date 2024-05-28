@@ -69,6 +69,7 @@ class NViewport:
 
         self.current_factor = None
         self.current_factor_delta = None
+        self.current_factor_half_delta = 1;
 
     def set_grid_size(self, width, height):
         self.x2 = width
@@ -104,6 +105,11 @@ class NViewport:
         if pw_of_two:
             lower_power = 2 ** math.floor(math.log2(factor))
             higher_power = lower_power * 2
+            if higher_power <= 0.5:
+                higher_power = 0.5
+                self.current_factor_half_delta = (factor - lower_power) / (higher_power - lower_power)
+            else:
+                self.current_factor_half_delta = 1
 
             if higher_power <= 1:
                 higher_power = 1

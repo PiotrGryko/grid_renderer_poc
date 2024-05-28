@@ -31,6 +31,7 @@ class NWindow:
         self.n_instances_from_texture_shader = NShader()
         self.n_billboards_from_texture_shader = NShader()
         self.n_color_map_v2_texture_shader = NShader()
+        self.n_color_billboards_texture_shader = NShader()
 
 
     def calculate_min_zoom(self, n_net):

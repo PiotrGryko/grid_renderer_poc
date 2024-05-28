@@ -204,7 +204,6 @@ void main()
     frag_tex_coord = tex_coord;
     
     
-    
     float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
     color_value = texture(color_map, intensified_color_value);
     default_color_value = texture(color_map, 0);
@@ -268,6 +267,75 @@ void main()
     }
 }
 """
+
+billboards_v3_vertex_shader_source = """
+#version 330 core
+
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 tex_coord;
+
+uniform mat4 projection_matrix;
+
+out vec2 frag_tex_coord;
+
+
+void main()
+{
+    // current quad
+    frag_tex_coord = tex_coord;
+    gl_Position =  projection_matrix * vec4(position,0.0,1.0);
+}
+"""
+# Fragment shader source code for drawing instances
+billboards_v3_fragment_shader_source = """
+#version 330 core
+
+uniform sampler1D color_map;
+uniform sampler2D tex1;
+uniform sampler2D tex2;
+uniform float fading_factor = 0;
+uniform float tex_unit = 0; // 0 or 1 
+uniform float tex_mix_factor = 0; // from 0 to 1 
+
+in vec2 frag_tex_coord;
+
+out vec4 frag_color;
+float color_multiplier = 40;
+
+
+void main() {
+ 
+    float value_one = texture(tex1, frag_tex_coord).r; 
+    float value_two = texture(tex2, frag_tex_coord).r; 
+    float value = mix(value_one, value_two,tex_unit);
+    
+    float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
+    vec3 color_value = texture(color_map, intensified_color_value).rgb;
+    
+     vec2 fragCoord = gl_FragCoord.xy;
+
+    // Assuming your window size is 800x600 for this example
+    vec2 windowSize = vec2(1280.0, 12800.0);
+
+    // Transform the window coordinates to normalized texture coordinates (0.0 to 1.0)
+    vec2 fragTexCoord = fragCoord / windowSize;
+
+    // Fetch the texel using texelFetch for a 2D texture with integer coordinates
+    ivec2 texelCoords = ivec2(fragCoord);
+    
+    vec2 center = texelCoords;  // Center in texture coordinates
+    float radius = 0.5;  // Smaller radius to keep the circle away from the edge
+
+    float distanceFromCenter = distance(frag_tex_coord, center); // Calculate the distance
+    float intensity = 1.0 - (distanceFromCenter / radius);  // Adjust intensity based on smaller radius
+    intensity = clamp(intensity, 0.0, 1.0);  // Ensure intensity stays within valid range    
+        
+    vec4 color = vec4(color_value.xyz * 3 * intensity, 1.0);
+    frag_color = color;
+
+}
+"""
+
 
 
 class NShader:
@@ -413,6 +481,9 @@ class NShader:
 
     def compile_billboards_v2_program(self):
         self.compile(billboards_v2_vertex_shader_source, billboards_v2_fragment_shader_source)
+
+    def compile_billboards_v3_program(self):
+        self.compile(billboards_v3_vertex_shader_source, billboards_v3_fragment_shader_source)
 
     def compile(self, vertex_shader_source, fragment_shader_source):
         self.shader_version = gl.glGetString(gl.GL_SHADING_LANGUAGE_VERSION)

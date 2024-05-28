@@ -56,6 +56,13 @@ class OpenGLApplication:
         self.n_window.n_color_map_v2_texture_shader.update_color_map(self.color_theme.name,
                                                                      self.color_theme.color_array)
 
+        self.n_window.n_color_billboards_texture_shader.use()
+        self.n_window.n_color_billboards_texture_shader.update_projection(self.n_window.get_projection_matrix())
+        self.n_window.n_color_billboards_texture_shader.update_mouse_position(mouse_x_ndc,
+                                                                              mouse_y_ndc)
+        self.n_window.n_color_billboards_texture_shader.update_color_map(self.color_theme.name,
+                                                                         self.color_theme.color_array)
+
         self.n_window.n_instances_from_texture_shader.use()
         self.n_window.n_instances_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
         self.n_window.n_instances_from_texture_shader.update_mouse_position(mouse_x_ndc,
@@ -75,7 +82,8 @@ class OpenGLApplication:
         self.n_scene.draw_scene(
             self.n_window.n_color_map_v2_texture_shader,
             self.n_window.n_instances_from_texture_shader,
-            self.n_window.n_billboards_from_texture_shader
+            self.n_window.n_billboards_from_texture_shader,
+            self.n_window.n_color_billboards_texture_shader
         )
         self.gui.render_fancy_pants()
 
@@ -140,12 +148,13 @@ class OpenGLApplication:
         self.n_window.n_color_map_v2_texture_shader.compile_color_map_v2_texture_program()
         self.n_window.n_instances_from_texture_shader.compile_instances_v2_program()
         self.n_window.n_billboards_from_texture_shader.compile_billboards_v2_program()
+        self.n_window.n_color_billboards_texture_shader.compile_billboards_v3_program()
 
         self.utils.print_memory_usage()
         if load_mem_file:
             self.n_net.init_from_last_memory_files()
         else:
-            self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())],
+            self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())[:1]],
                                          save_to_memfile=save_mem_file)
         self.utils.print_memory_usage()
         # update tree size and depth using grid size
@@ -161,4 +170,5 @@ class OpenGLApplication:
         gl.glDeleteProgram(self.n_window.n_color_map_v2_texture_shader.shader_program)
         gl.glDeleteProgram(self.n_window.n_instances_from_texture_shader.shader_program)
         gl.glDeleteProgram(self.n_window.n_billboards_from_texture_shader.shader_program)
+        gl.glDeleteProgram(self.n_window.n_color_billboards_texture_shader.shader_program)
         self.gui.remove_gui()

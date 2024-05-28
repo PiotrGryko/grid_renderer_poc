@@ -426,7 +426,9 @@ class NSceneV2:
             should_update = False
 
         if should_update:
-            print("should update")
+            if self.current_entity is not None:
+                self.zooming_in = current_quad.zoom > self.current_entity.visible_grid_part.zoom
+            print("should update", "zooming in:", self.zooming_in)
 
             if self.current_entity == self.entity2 and self.entity2.visible_grid_part.factor == current_quad.factor:
                 self.should_update_prev = True
@@ -434,7 +436,6 @@ class NSceneV2:
                 self.should_update_prev = True
 
             if self.should_update_prev:
-                print("update entity 2 ")
                 self.should_update_prev = False
                 self.entity2.update_entity(self.n_net,
                                            current_quad,
@@ -455,11 +456,13 @@ class NSceneV2:
                         self.entity1.visible_grid_part,
                         self.n_window
                     )
+                #self.zooming_in = self.entity2.visible_grid_part.zoom > self.entity1.visible_grid_part.zoom
                 self.current_entity = self.entity2
-                self.zooming_in = self.entity2.visible_grid_part.zoom > self.entity1.visible_grid_part.zoom
+                print("update entity 2 ", self.zooming_in)
+
 
             else:
-                print("update entity 1")
+
                 self.updated = True
                 self.entity1.update_entity(self.n_net, current_quad, current_quad.factor)
 
@@ -471,9 +474,6 @@ class NSceneV2:
                     self.entity1.visible_grid_part.offset_y,
                     self.entity1.visible_grid_part.factor
                 )
-                self.current_entity = self.entity1
-                if self.entity2.visible_grid_part is not None:
-                    self.zooming_in = self.entity1.visible_grid_part.zoom > self.entity2.visible_grid_part.zoom
                 if self.entity2.visible_grid_part is not None:
                     self.entity1.quad.update_second_texture_coordinates(
                         self.current_width,
@@ -482,15 +482,19 @@ class NSceneV2:
                         self.entity2.visible_grid_part,
                         self.n_window
                     )
+                # if self.entity2.visible_grid_part is not None:
+                #     self.zooming_in = self.entity1.visible_grid_part.zoom > self.entity2.visible_grid_part.zoom
+                self.current_entity = self.entity1
+                print("update entity 1",self.zooming_in)
 
-    def draw_textures(self, n_color_map_v2_texture_shader, should_fade):
+    def draw_textures(self, n_color_map_v2_texture_shader, alpha_factor):
         factor = self.n_viewport.current_factor
         factor_delta = self.n_viewport.current_factor_delta
 
         n_color_map_v2_texture_shader.use()
         mix_factor = factor_delta if self.zooming_in else 1 - factor_delta
-        alpha_factor = mix_factor if should_fade else 1
-
+        # alpha_factor = mix_factor if should_fade else 1
+        # print(mix_factor)
         if self.current_entity == self.entity2:
             n_color_map_v2_texture_shader.select_texture(1)
             n_color_map_v2_texture_shader.mix_textures(mix_factor)
@@ -542,7 +546,8 @@ class NSceneV2:
     def draw_scene(self,
                    n_color_map_v2_texture_shader,
                    n_instances_from_texture_shader,
-                   n_billboards_from_texture_shader
+                   n_billboards_from_texture_shader,
+                   n_color_billboards_texture_shader
                    ):
 
         if not self.entity1.created:
@@ -566,9 +571,10 @@ class NSceneV2:
 
         size = self.current_entity.visible_grid_part.w * self.current_entity.visible_grid_part.h
 
-        factor = self.n_viewport.current_factor
 
-        if size< max_nodes_count:
+        if self.n_viewport.current_factor_half_delta < 1:
+            #print(self.n_viewport.current_factor, self.n_viewport.current_factor_half_delta)
             self.draw_billboards(n_billboards_from_texture_shader, size)
+            #self.draw_textures(n_color_billboards_texture_shader, False)
 
-        self.draw_textures(n_color_map_v2_texture_shader, size < max_nodes_count)
+        self.draw_textures(n_color_map_v2_texture_shader, self.n_viewport.current_factor_half_delta)
