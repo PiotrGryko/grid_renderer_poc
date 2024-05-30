@@ -397,7 +397,7 @@ class NSceneV2:
         self.entity1 = EntityV2(gl.GL_TEXTURE2)
         self.entity2 = EntityV2(gl.GL_TEXTURE3)
 
-        self.should_update_prev = False
+        self.should_update_entity2 = False
         self.updated = False
 
         self.current_entity = None
@@ -407,7 +407,7 @@ class NSceneV2:
         self.entity1.update_node_radius(radius)
 
     def switch_unit(self):
-        self.should_update_prev = True
+        self.should_update_entity2 = True
 
     # @profile
     def update_scene_entities(self):
@@ -425,18 +425,29 @@ class NSceneV2:
         if self.entity2.visible_grid_part == current_quad:
             should_update = False
 
+        zoom_turnaround = False
         if should_update:
             if self.current_entity is not None:
-                self.zooming_in = current_quad.zoom > self.current_entity.visible_grid_part.zoom
-            print("should update", "zooming in:", self.zooming_in)
+                # self.update_zoom_direction(current_quad.factor <= self.current_entity.visible_grid_part.factor)
+                new_zoom_state = current_quad.zoom >= self.current_entity.visible_grid_part.zoom
+                if new_zoom_state != self.zooming_in:
+                    zoom_turnaround = True
+                self.zooming_in = new_zoom_state
 
+            # Update entity2 if its current and the detail factor didn't change
             if self.current_entity == self.entity2 and self.entity2.visible_grid_part.factor == current_quad.factor:
-                self.should_update_prev = True
-            if self.current_entity == self.entity1 and self.entity1.visible_grid_part.factor != current_quad.factor:
-                self.should_update_prev = True
+                self.should_update_entity2 = True
+            # Update entity2 if its current and and the user changed the zoom direction
+            # In this case ignore the texture swap
+            if self.current_entity == self.entity2 and zoom_turnaround:
+                self.should_update_entity2 = True
+            # Update entity2 if the current entity1 and the detail factor changed.
+            # Skip if the zooming direction changed
+            if self.current_entity == self.entity1 and self.entity1.visible_grid_part.factor != current_quad.factor and not zoom_turnaround:
+                self.should_update_entity2 = True
 
-            if self.should_update_prev:
-                self.should_update_prev = False
+            if self.should_update_entity2:
+                self.should_update_entity2 = False
                 self.entity2.update_entity(self.n_net,
                                            current_quad,
                                            current_quad.factor)
@@ -456,9 +467,11 @@ class NSceneV2:
                         self.entity1.visible_grid_part,
                         self.n_window
                     )
-                #self.zooming_in = self.entity2.visible_grid_part.zoom > self.entity1.visible_grid_part.zoom
                 self.current_entity = self.entity2
-                print("update entity 2 ", self.zooming_in)
+                print("update entity2 ",
+                      "current factor", self.entity2.visible_grid_part.factor,
+                      "prev factor", self.entity1.visible_grid_part.factor,
+                      "zoom turnaround", zoom_turnaround)
 
 
             else:
@@ -482,10 +495,15 @@ class NSceneV2:
                         self.entity2.visible_grid_part,
                         self.n_window
                     )
-                # if self.entity2.visible_grid_part is not None:
-                #     self.zooming_in = self.entity1.visible_grid_part.zoom > self.entity2.visible_grid_part.zoom
                 self.current_entity = self.entity1
-                print("update entity 1",self.zooming_in)
+
+                if self.entity2.visible_grid_part is not None:
+                    print("update entity1 ",
+                          "current factor", self.entity1.visible_grid_part.factor,
+                          "prev factor", self.entity2.visible_grid_part.factor,
+                          "zoom turnaround", zoom_turnaround)
+                else:
+                    print("update entity 1", "zoom turnaround", zoom_turnaround)
 
     def draw_textures(self, n_color_map_v2_texture_shader, alpha_factor):
         factor = self.n_viewport.current_factor
@@ -493,8 +511,6 @@ class NSceneV2:
 
         n_color_map_v2_texture_shader.use()
         mix_factor = factor_delta if self.zooming_in else 1 - factor_delta
-        # alpha_factor = mix_factor if should_fade else 1
-        # print(mix_factor)
         if self.current_entity == self.entity2:
             n_color_map_v2_texture_shader.select_texture(1)
             n_color_map_v2_texture_shader.mix_textures(mix_factor)
@@ -571,10 +587,9 @@ class NSceneV2:
 
         size = self.current_entity.visible_grid_part.w * self.current_entity.visible_grid_part.h
 
-
         if self.n_viewport.current_factor_half_delta < 1:
-            #print(self.n_viewport.current_factor, self.n_viewport.current_factor_half_delta)
+            # print(self.n_viewport.current_factor, self.n_viewport.current_factor_half_delta)
             self.draw_billboards(n_billboards_from_texture_shader, size)
-            #self.draw_textures(n_color_billboards_texture_shader, False)
+            # self.draw_textures(n_color_billboards_texture_shader, False)
 
         self.draw_textures(n_color_map_v2_texture_shader, self.n_viewport.current_factor_half_delta)

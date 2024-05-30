@@ -154,7 +154,7 @@ class OpenGLApplication:
         if load_mem_file:
             self.n_net.init_from_last_memory_files()
         else:
-            self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())[:1]],
+            self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())],
                                          save_to_memfile=save_mem_file)
         self.utils.print_memory_usage()
         # update tree size and depth using grid size
