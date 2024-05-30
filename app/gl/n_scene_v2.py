@@ -1,12 +1,8 @@
-import gc
 import math
 import time
 
-import numpy as np
-
 import OpenGL.GL as gl
-
-from app.gl.n_viewport import VisibleGrid
+import numpy as np
 
 
 class Quad:
@@ -111,21 +107,20 @@ class Quad:
         # Update the buffer data
         gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self.vertices.nbytes, self.vertices)
 
-    def update_quad_position_old(self, x1, y1, x2, y2):
-        if not self.created:
-            return
-        self.vertices = np.array([
-            x1, y1,  # Bottom-left
-            x2, y1,  # Bottom-right
-            x2, y2,  # Top-right
-            x1, y2,  # Top-left
-        ], dtype=np.float32)
-        # Bind the VBO
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-        # Update the buffer data
-        gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self.vertices.nbytes, self.vertices)
-
     def update_second_texture_coordinates(self, tex_width, tex_height, current_quad, prev_quad, n_window):
+        """
+        Map tex coordinates from one quad to another quad
+        Two quads can be different sized and different positions
+        Both quads have [0-1] tex coordinates in their own space
+        This method maps prev_quad on current_quad and calculates
+        prev_quad tex coordinates (prev_tex_coords) in current quad space (tex coordinates [0-1])
+        :param tex_width:
+        :param tex_height:
+        :param current_quad:
+        :param prev_quad:
+        :param n_window:
+        :return:
+        """
         if not self.created:
             return
 
@@ -403,6 +398,8 @@ class NSceneV2:
         self.current_entity = None
         self.zooming_in = True
 
+        self.enable_blending = True
+
     def set_node_radius(self, radius):
         self.entity1.update_node_radius(radius)
 
@@ -437,7 +434,7 @@ class NSceneV2:
             # Update entity2 if its current and the detail factor didn't change
             if self.current_entity == self.entity2 and self.entity2.visible_grid_part.factor == current_quad.factor:
                 self.should_update_entity2 = True
-            # Update entity2 if its current and and the user changed the zoom direction
+            # Update entity2 if its current and the user changed the zoom direction
             # In this case ignore the texture swap
             if self.current_entity == self.entity2 and zoom_turnaround:
                 self.should_update_entity2 = True
@@ -446,7 +443,7 @@ class NSceneV2:
             if self.current_entity == self.entity1 and self.entity1.visible_grid_part.factor != current_quad.factor and not zoom_turnaround:
                 self.should_update_entity2 = True
 
-            if self.should_update_entity2:
+            if self.should_update_entity2 and self.enable_blending:
                 self.should_update_entity2 = False
                 self.entity2.update_entity(self.n_net,
                                            current_quad,
@@ -472,10 +469,7 @@ class NSceneV2:
                       "current factor", self.entity2.visible_grid_part.factor,
                       "prev factor", self.entity1.visible_grid_part.factor,
                       "zoom turnaround", zoom_turnaround)
-
-
             else:
-
                 self.updated = True
                 self.entity1.update_entity(self.n_net, current_quad, current_quad.factor)
 

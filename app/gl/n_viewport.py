@@ -69,7 +69,8 @@ class NViewport:
 
         self.current_factor = None
         self.current_factor_delta = None
-        self.current_factor_half_delta = 1;
+        self.current_factor_half_delta = 1
+        self.power_of_two = True
 
     def set_grid_size(self, width, height):
         self.x2 = width
@@ -79,7 +80,7 @@ class NViewport:
             self.n_tree.set_size(width, height)
             self.n_tree.generate()
 
-    def get_details_factor(self, viewport, pw_of_two=True):
+    def get_details_factor(self, viewport):
         """
         Calculate the down sample factor
         Factor is used to reduce the vertices count or texture quality
@@ -102,7 +103,7 @@ class NViewport:
         height_factor = max(subgrid_height / target_height, 0.1)
         factor = max(width_factor, height_factor)
 
-        if pw_of_two:
+        if self.power_of_two:
             lower_power = 2 ** math.floor(math.log2(factor))
             higher_power = lower_power * 2
             if higher_power <= 0.5:
