@@ -54,18 +54,15 @@ class VisibleGrid:
 
 
 class NViewport:
-    def __init__(self, n_tree, n_net, buffer_w, buffer_h):
+    def __init__(self, n_net, viewport_w, viewport_h):
         self.visible_data = None
-        self.n_tree = n_tree
         self.n_net = n_net
         self.x1 = 0
         self.y1 = 0
         self.x2 = 0
         self.y2 = 0
-        self.buffer_w = buffer_w
-        self.buffer_h = buffer_h
-
-        self.use_bsp = False
+        self.viewport_w = viewport_w
+        self.viewport_h = viewport_h
 
         self.current_factor = None
         self.current_factor_delta = None
@@ -75,10 +72,6 @@ class NViewport:
     def set_grid_size(self, width, height):
         self.x2 = width
         self.y2 = height
-
-        if self.use_bsp:
-            self.n_tree.set_size(width, height)
-            self.n_tree.generate()
 
     def get_details_factor(self, viewport):
         """
@@ -96,8 +89,8 @@ class NViewport:
         subgrid_width = min(col_max - col_min, self.n_net.total_width)
         subgrid_height = min(row_max - row_min, self.n_net.total_height)
 
-        target_width = self.buffer_w
-        target_height = self.buffer_h
+        target_width = self.viewport_w
+        target_height = self.viewport_h
 
         width_factor = max(subgrid_width / target_width, 0.1)
         height_factor = max(subgrid_height / target_height, 0.1)

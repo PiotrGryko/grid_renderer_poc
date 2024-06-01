@@ -102,3 +102,7 @@ class Projection:
 
         result = translation_matrix_1 @ zoom_matrix @ translation_matrix_2
         self.matrix = self.matrix @ result
+
+    def zoom_to(self, new_zoom):
+        self.matrix[0][0] = new_zoom
+        self.matrix[1][1] = new_zoom

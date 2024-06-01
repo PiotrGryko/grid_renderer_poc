@@ -1,11 +1,10 @@
 import json
 import math
 import os
-import time
 import re
+import time
 
 import numpy as np
-import psutil
 
 from app.grid.n_grid import create_grid, create_layer
 
@@ -33,6 +32,16 @@ class NNet:
             calculated_size = [size_x, size_y]
             rows_count, columns_count = calculated_size[0], calculated_size[1]
             layer_grid = np.random.uniform(0, 1, (rows_count, columns_count)).astype(np.float32)
+            layers.append(layer_grid)
+        print("Creating layers")
+        self.create_layers(layers)
+        self.init_grid()
+
+    def init_from_np_arrays(self, all_layers):
+        print("Init net from np arrays")
+        layers = []
+        print("Generating layers data")
+        for layer_grid in all_layers:
             layers.append(layer_grid)
         print("Creating layers")
         self.create_layers(layers)
@@ -71,7 +80,6 @@ class NNet:
         layers = []
         print("")
 
-
         for index, tensor in enumerate(tensors):
             print(f"\rDetaching tensors: {int(100 * index / size)}%", end="")
             tensor_numpy = tensor.detach().numpy()
@@ -102,6 +110,7 @@ class NNet:
 
     def create_layers(self, all_layers):
         start_time = time.time()
+        self.layers = []
         print("Creating layers", len(all_layers))
         for index, layer_data in enumerate(all_layers):
             grid_layer = create_layer(layer_data)
@@ -114,7 +123,7 @@ class NNet:
         if len(self.layers) == 0:
             return
         max_row_count = max(l.rows_count for l in self.layers)
-        gap_between_layers = 200
+        gap_between_layers = len(self.layers)
         print("Loading offsets")
         for index, grid_layer in enumerate(self.layers):
             column_offset = sum([l.columns_count for l in self.layers[:index]])

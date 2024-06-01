@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 
 class NColorTheme:
-    def __init__(self):
+    def __init__(self, load_random=False):
         self.color_high = None
         self.index = None
         self.color_array = None
@@ -46,7 +46,8 @@ class NColorTheme:
                              'terrain', 'terrain_r', 'turbo', 'turbo_r', 'twilight', 'twilight_r', 'twilight_shifted',
                              'twilight_shifted_r', 'viridis', 'viridis_r', 'winter', 'winter_r']
 
-        self.load_cmap(random.randint(0, len(self.cmap_options)))
+        if load_random:
+            self.load_cmap(random.randint(0, len(self.cmap_options)))
 
     def next(self):
         size = len(self.cmap_options)
@@ -64,7 +65,6 @@ class NColorTheme:
         self.cmap = plt.cm.get_cmap(self.name)
         self.color_low = self.cmap(-1)
         self.color_high = self.cmap(0.9)
-
 
         num_colors = 255
         values = np.linspace(0, 1, num_colors)  # Generate 255 evenly spaced values between 0 and 1

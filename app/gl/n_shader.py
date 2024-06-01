@@ -301,7 +301,7 @@ in vec2 frag_tex_coord;
 
 out vec4 frag_color;
 float color_multiplier = 40;
-
+float pixelRadius = 0.5;
 
 void main() {
  
@@ -312,26 +312,21 @@ void main() {
     float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
     vec3 color_value = texture(color_map, intensified_color_value).rgb;
     
-     vec2 fragCoord = gl_FragCoord.xy;
-
-    // Assuming your window size is 800x600 for this example
-    vec2 windowSize = vec2(1280.0, 12800.0);
-
-    // Transform the window coordinates to normalized texture coordinates (0.0 to 1.0)
-    vec2 fragTexCoord = fragCoord / windowSize;
-
-    // Fetch the texel using texelFetch for a 2D texture with integer coordinates
-    ivec2 texelCoords = ivec2(fragCoord);
+    // Calculate the center of the "pixel"
+    vec2 center = vec2(0.5, 0.5);
     
-    vec2 center = texelCoords;  // Center in texture coordinates
-    float radius = 0.5;  // Smaller radius to keep the circle away from the edge
+    // Calculate the distance from the current fragment to the center of the "pixel"
+    vec2 dist = fract(gl_FragCoord.xy / pixelRadius) - center;
+    float distance = length(dist);
 
-    float distanceFromCenter = distance(frag_tex_coord, center); // Calculate the distance
-    float intensity = 1.0 - (distanceFromCenter / radius);  // Adjust intensity based on smaller radius
-    intensity = clamp(intensity, 0.0, 1.0);  // Ensure intensity stays within valid range    
-        
-    vec4 color = vec4(color_value.xyz * 3 * intensity, 1.0);
-    frag_color = color;
+    // If the distance is greater than the radius, discard the fragment
+    if (distance > 0.5)
+    {
+        discard;
+    }
+    
+    // Sample the texture and set the output color
+    frag_color = vec4(color_value,1);
 
 }
 """

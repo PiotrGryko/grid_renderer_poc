@@ -4,9 +4,12 @@ import imgui
 from imgui.integrations.glfw import GlfwRenderer
 import glfw
 
+from app.gui.model_settings import ModelSettingsPage
+from app.gui.top_menu import TopMenu
+
 
 class GuiPants:
-    def __init__(self, n_window, color_theme, utils):
+    def __init__(self, n_window, color_theme, utils, config, app, download_manager):
         self.fps = 0
         self.color_theme = color_theme
         self.start_time = time.time()
@@ -14,6 +17,11 @@ class GuiPants:
         self.n_window = n_window
         self.impl = None
         self.utils = utils
+        self.config = config
+        self.app = app
+        self.top_menu = TopMenu(self.config, self.n_window, self.color_theme, self.app)
+
+        self.model_settings_page = ModelSettingsPage(download_manager, self.config)
 
     def attach_fancy_gui(self):
         imgui.create_context()
@@ -29,18 +37,22 @@ class GuiPants:
             self.n_window.window_key_callback(window, key, scancode, action, mods)
             self.impl.keyboard_callback(window, key, scancode, action, mods)
 
+        def char_callback_wrapper(window, char):
+            self.impl.char_callback(window, char)
+
         def mouse_callback_wrapper(window, x_offset, y_offset):
             self.n_window.mouse_scroll_callback(window, x_offset, y_offset)
             self.impl.scroll_callback(window, x_offset, y_offset)
 
         glfw.set_key_callback(self.n_window.window, key_callback_wrapper)
+        glfw.set_char_callback(self.n_window.window, char_callback_wrapper)
         glfw.set_scroll_callback(self.n_window.window, mouse_callback_wrapper)
 
-
-
-    def render_fancy_pants(self):
-        self.impl.process_inputs()
-
+    def render_config_box(self):
+        '''
+        Debug info
+        :return:
+        '''
         # Update frame count
         self.frame_count += 1
         # Calculate elapsed time
@@ -50,56 +62,30 @@ class GuiPants:
             self.frame_count = 0
             self.start_time = time.time()
 
-        imgui.new_frame()
-
-        if imgui.begin_main_menu_bar():
-            if imgui.begin_menu("File"):
-                if imgui.menu_item("Open")[0]:
-                    print("Open selected")
-                if imgui.menu_item("Save")[0]:
-                    print("Save selected")
-                if imgui.menu_item("Exit")[0]:
-                    self.n_window.close_window()
-                imgui.end_menu()
-            if imgui.begin_menu("Color"):
-                imgui.begin_child("ColorMenuChild", width=220, height=250)
-                for color in self.color_theme.cmap_options:
-                    selected = self.color_theme.name == color
-                    if imgui.menu_item(color, selected=selected)[0]:
-                        print(color, "selected")
-                        self.color_theme.load_by_name(color)
-                imgui.end_child()
-                imgui.end_menu()
-            imgui.end_main_menu_bar()
-
-            # Create a floating window with input fields
-        imgui.begin("Floating Input Window")
-
-        # Text input field
-        changed, text_value = imgui.input_text("Text Input", "Default Text", 256)
-        if changed:
-            print("Text Input Changed:", text_value)
-        imgui.end()
-
-        # Create a floating window docked to the top
-
         imgui.set_next_window_bg_alpha(0.0)  # Make background transparent
         imgui.set_next_window_position(0, imgui.get_frame_height(), imgui.ONCE)
-        imgui.set_next_window_size(175, 70, imgui.ONCE)
+        imgui.set_next_window_size(175, 80, imgui.ONCE)
         imgui.begin("Fps",
                     flags=imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_RESIZE)
         r, g, b, a = self.color_theme.color_high
-        imgui.push_style_color(imgui.COLOR_TEXT, r,g,b,a)  # Red color
+        imgui.push_style_color(imgui.COLOR_TEXT, r, g, b, a)  # Red color
         imgui.text(f"FPS: {self.fps:.2f}")
         imgui.text(f"Color: {self.color_theme.name}")
+        imgui.text(f"Buffer: {self.config.buffer_width}x{self.config.buffer_height}")
         imgui.text(self.utils.get_memory_message())
         imgui.pop_style_color()
 
         imgui.end()
-        # Your GUI code here
-        # imgui.begin("Hello, World!")
-        # imgui.text("This is some useful text.")
-        # imgui.end()
+
+    def render_fancy_pants(self):
+        self.impl.process_inputs()
+
+        imgui.new_frame()
+
+        self.top_menu.render_top_menu()
+        self.render_config_box()
+        if self.top_menu.show_model_settings:
+            self.top_menu.show_model_settings = self.model_settings_page.render()
 
         # Rendering
         imgui.render()

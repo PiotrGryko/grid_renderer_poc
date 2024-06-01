@@ -270,6 +270,10 @@ class NWindow:
         self.on_viewport_updated()
 
     def reset_to_center(self, n_net):
+
+        self.projection.translate_to(-1, -1)
+        self.projection.zoom_to(self.min_zoom)
+
         world_w, world_h = self.projection.world_to_window_point(n_net.total_width, n_net.total_height)
         # by default world is positioned (0,0) in the bottom left corner
         dx = self.width / 2
@@ -278,6 +282,7 @@ class NWindow:
         dx = dx - world_w - (dx - world_w) / 2
         dy = dy / self.height * 2.0
         dy = dy - world_h - (dy - world_h) / 2
-
-        self.projection.translate_by(dx, dy)
+        #self.projection.translate_by(dx, dy)
+        print(dx,dy)
+        self.projection.translate_to(-(1-dx),-(1-dy))
         self.on_viewport_updated()

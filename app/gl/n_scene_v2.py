@@ -86,6 +86,15 @@ class Quad:
         gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, self.indices.nbytes, self.indices, gl.GL_STATIC_DRAW)
         self.created = True
 
+    def destroy(self):
+        if self.created:
+            gl.glDeleteBuffers(1, [self.vbo])
+            gl.glDeleteBuffers(1, [self.tex_vbo])
+            gl.glDeleteBuffers(1, [self.prev_tex_vbo])
+            gl.glDeleteBuffers(1, [self.ebo])
+            gl.glDeleteVertexArrays(1, [self.vao])
+            self.created = False
+
     def update_quad_position(self, x1, y1, x2, y2, offset_x, offset_y, factor):
         if not self.created:
             return
@@ -230,7 +239,6 @@ class EntityV2:
         return tex_coords
 
     def create_data_container_texture(self, width, height):
-
         self.width = width
         self.height = height
         self.empty_img = np.full((self.width, self.height), fill_value=-1, dtype=np.float32)
@@ -239,7 +247,7 @@ class EntityV2:
         self.texture = gl.glGenTextures(1)
         gl.glActiveTexture(self.gl_texture_unit)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture)
-        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_R32F, self.width, self.height, 0, gl.GL_RED, gl.GL_FLOAT, None)
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_R32F, width, height, 0, gl.GL_RED, gl.GL_FLOAT, None)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_BORDER)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_BORDER)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
@@ -304,25 +312,31 @@ class EntityV2:
 
         self.created = True
 
-    def update_node_radius(self, radius):
-        if not self.created:
-            return
-        self.radius = radius
-        vertices = self.build_node_vertices()
-
-        # Bind the vertex buffer and upload vertex data
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.node_circle_vbo)
-        # Update the buffer data
-        gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, vertices.nbytes, vertices)
+    def destroy(self):
+        if self.created:
+            self.quad.destroy()
+            gl.glDeleteBuffers(1, [self.node_circle_vbo])
+            gl.glDeleteBuffers(1, [self.node_quad_vbo])
+            gl.glDeleteBuffers(1, [self.tex_vbo])
+            gl.glDeleteBuffers(1, [self.ebo])
+            gl.glDeleteVertexArrays(1, [self.vao])
+            gl.glDeleteTextures(1, [self.texture])
+            self.created = False
 
     def update_data(self, chunks, dimensions):
         if not self.created:
             return
         start_time = time.time()
         gl.glActiveTexture(self.gl_texture_unit)
+        # Clear previous state
         gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, self.width, self.height, gl.GL_RED, gl.GL_FLOAT, self.empty_img)
         for c, d in zip(chunks, dimensions):
             cx1, cy1, cx2, cy2 = d
+            width = cx2 - cx1
+            height = cy2 - cy1
+            if cx1 + width > self.width or cy1 + height > self.height:
+                print("Data outside the texture bounds!! Did you update the buffer size?")
+                continue
             gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, cx1, cy1, cx2 - cx1, cy2 - cy1, gl.GL_RED, gl.GL_FLOAT, c)
 
         # print("View data updated", (time.time() - start_time) * 1000, "ms")
@@ -386,8 +400,8 @@ class NSceneV2:
         self.n_viewport = n_viewport
         self.n_window = n_window
 
-        self.current_width = buffer_w * 2
-        self.current_height = buffer_h * 2
+        self.current_width = buffer_w
+        self.current_height = buffer_h
 
         self.entity1 = EntityV2(gl.GL_TEXTURE2)
         self.entity2 = EntityV2(gl.GL_TEXTURE3)
@@ -400,12 +414,9 @@ class NSceneV2:
 
         self.enable_blending = True
 
-    def set_node_radius(self, radius):
-        self.entity1.update_node_radius(radius)
-
-    def switch_unit(self):
-        self.should_update_entity2 = True
-
+    def destroy(self):
+        self.entity1.destroy()
+        self.entity2.destroy()
     # @profile
     def update_scene_entities(self):
 
@@ -413,8 +424,6 @@ class NSceneV2:
             return
 
         current_quad = self.n_viewport.visible_data
-
-        prev_quad = None
         should_update = True
 
         if self.entity1.visible_grid_part == current_quad:
@@ -422,6 +431,10 @@ class NSceneV2:
         if self.entity2.visible_grid_part == current_quad:
             should_update = False
 
+        reached_min_zoom = self.n_window.zoom_factor == self.n_window.min_zoom
+        if reached_min_zoom:
+            # When max zoomed out reset to default
+            self.zooming_in = True
         zoom_turnaround = False
         if should_update:
             if self.current_entity is not None:
@@ -438,7 +451,7 @@ class NSceneV2:
             # In this case ignore the texture swap
             if self.current_entity == self.entity2 and zoom_turnaround:
                 self.should_update_entity2 = True
-            # Update entity2 if the current entity1 and the detail factor changed.
+            # Update entity2 if the current is entity1 and the detail factor changed.
             # Skip if the zooming direction changed
             if self.current_entity == self.entity1 and self.entity1.visible_grid_part.factor != current_quad.factor and not zoom_turnaround:
                 self.should_update_entity2 = True
@@ -505,6 +518,8 @@ class NSceneV2:
 
         n_color_map_v2_texture_shader.use()
         mix_factor = factor_delta if self.zooming_in else 1 - factor_delta
+        if not self.enable_blending:
+            mix_factor = 0
         if self.current_entity == self.entity2:
             n_color_map_v2_texture_shader.select_texture(1)
             n_color_map_v2_texture_shader.mix_textures(mix_factor)
@@ -573,7 +588,6 @@ class NSceneV2:
             )
             self.entity2.quad.create_quad()
 
-        # Update
         self.update_scene_entities()
 
         max_points_count = 1500000
@@ -584,6 +598,6 @@ class NSceneV2:
         if self.n_viewport.current_factor_half_delta < 1:
             # print(self.n_viewport.current_factor, self.n_viewport.current_factor_half_delta)
             self.draw_billboards(n_billboards_from_texture_shader, size)
-            # self.draw_textures(n_color_billboards_texture_shader, False)
+            # self.draw_textures(n_color_billboards_texture_shader, 1)
 
         self.draw_textures(n_color_map_v2_texture_shader, self.n_viewport.current_factor_half_delta)
