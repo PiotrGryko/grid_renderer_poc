@@ -5,6 +5,7 @@ from transformers import AutoModelForCausalLM
 
 from app.config.app_config import LittleConfig
 from app.gl.c_color_theme import NColorTheme
+from app.gl.n_camera import CameraAnimation
 from app.gl.n_net import NNet
 from app.gl.n_scene_v2 import NSceneV2
 from app.gl.n_viewport import NViewport
@@ -35,7 +36,13 @@ class OpenGLApplication:
         self.n_net = NNet(self.n_window, self.color_theme)
         self.n_viewport = NViewport(self.n_net, self.viewport_width, self.viewport_height)
         self.n_scene = NSceneV2(self.n_net, self.n_viewport, self.n_window, self.buffer_width, self.buffer_height)
-        self.gui = GuiPants(self.n_window, self.color_theme, self.utils, self.config, self, self.download_manager)
+
+        self.camera_animation = CameraAnimation(self.n_window, self.n_net)
+
+        self.gui = GuiPants(self.n_net, self.n_window, self.color_theme, self.utils, self.config, self,
+                            self.download_manager, self.camera_animation)
+
+
 
     def render(self):
 
@@ -85,6 +92,7 @@ class OpenGLApplication:
             self.n_window.n_color_billboards_texture_shader
         )
         self.gui.render_fancy_pants()
+        self.camera_animation.update_animation()
 
         glfw.swap_buffers(self.n_window.window)
         self.utils.print_memory_usage()
@@ -92,12 +100,14 @@ class OpenGLApplication:
     def on_key_pressed(self, key):
         print("key pressed", key)
         if key == glfw.KEY_UP:
-            for i in range(20):
-                self.n_window.mouse_scroll_callback(None, None, -0.1)
+            self.n_window.mouse_scroll_callback(None, None, -0.1)
         if key == glfw.KEY_DOWN:
-            self.n_window.mouse_scroll_callback(None, None, 1)
+            self.n_window.mouse_scroll_callback(None, None, 0.1)
         if key == glfw.KEY_C:
             self.color_theme.next()
+        if key == glfw.KEY_A:
+            self.camera_animation.animate_to_bounds(78012, 15296, 78800, 15696, duration=1)
+
 
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
@@ -108,8 +118,6 @@ class OpenGLApplication:
 
     def reload_config(self):
         self.config.save_config()
-        self.n_scene.enable_blending = self.config.enable_blend
-        self.n_viewport.power_of_two = self.config.power_of_two
         self.color_theme.load_by_name(self.config.color_name)
 
         if self.config.buffer_width != self.buffer_width or self.config.buffer_height != self.buffer_height:
@@ -124,16 +132,8 @@ class OpenGLApplication:
             self.n_viewport.viewport_w = self.viewport_width
             self.n_viewport.viewport_h = self.viewport_height
 
-    def open_downloaded_model(self, model_directory):
-        model = AutoModelForCausalLM.from_pretrained(model_directory, local_files_only=True)
-
-        self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())],
-                                     save_to_memfile=False)
-        # update tree size and depth using grid size
-        self.n_viewport.set_grid_size(self.n_net.total_width, self.n_net.total_height)
-        # calculate min zoom using grid size
-        self.n_window.calculate_min_zoom(self.n_net)
-        self.n_window.reset_to_center(self.n_net)
+        self.n_scene.enable_blending = self.config.enable_blend
+        self.n_viewport.power_of_two = self.config.power_of_two
 
     def load_model(self,
                    model=None,
@@ -144,20 +144,21 @@ class OpenGLApplication:
         if load_mem_file:
             self.n_net.init_from_last_memory_files()
         elif model is not None:
-            self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())],
-                                         save_to_memfile=save_mem_file)
+            self.n_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
         elif model_directory is not None:
             model = AutoModelForCausalLM.from_pretrained(model_directory, local_files_only=True)
-            self.n_net.init_from_tensors([tensor for name, tensor in list(model.named_parameters())],
-                                         save_to_memfile=save_mem_file)
+            self.n_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
         else:
             print("No model to load!", "Showing welcome message")
-            #welcome_message = self.utils.create_welcome_message()
+            # welcome_message = self.utils.create_welcome_message()
             welcome_message = self.utils.create_logo_message()
 
-            self.n_net.init_from_np_arrays([welcome_message])
+            self.n_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
 
         self.utils.print_memory_usage()
+        self.reload_view()
+
+    def reload_view(self):
         # update tree size and depth using grid size
         self.n_viewport.set_grid_size(self.n_net.total_width, self.n_net.total_height)
         # calculate min zoom using grid size

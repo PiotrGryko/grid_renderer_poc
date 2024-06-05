@@ -4,12 +4,14 @@ import imgui
 from imgui.integrations.glfw import GlfwRenderer
 import glfw
 
+from app.gui.layers_view import LayersView
 from app.gui.model_settings import ModelSettingsPage
+from app.gui.terminal import ScienceBasedTerminal
 from app.gui.top_menu import TopMenu
 
 
 class GuiPants:
-    def __init__(self, n_window, color_theme, utils, config, app, download_manager):
+    def __init__(self, n_net, n_window, color_theme, utils, config, app, download_manager, camera_animation):
         self.fps = 0
         self.color_theme = color_theme
         self.start_time = time.time()
@@ -19,9 +21,11 @@ class GuiPants:
         self.utils = utils
         self.config = config
         self.app = app
+        self.n_net = n_net
         self.top_menu = TopMenu(self.config, self.n_window, self.color_theme, self.app)
-
+        self.layers_view = LayersView(self.n_net, camera_animation)
         self.model_settings_page = ModelSettingsPage(download_manager, self.config)
+        self.terminal = ScienceBasedTerminal(self.app, self.n_net)
 
     def attach_fancy_gui(self):
         imgui.create_context()
@@ -84,9 +88,11 @@ class GuiPants:
 
         self.top_menu.render_top_menu()
         self.render_config_box()
+        self.layers_view.render()
         if self.top_menu.show_model_settings:
             self.top_menu.show_model_settings = self.model_settings_page.render()
 
+        self.terminal.render()
         # Rendering
         imgui.render()
         self.impl.render(imgui.get_draw_data())

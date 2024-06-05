@@ -27,7 +27,6 @@ class TopMenu:
         if self.selected_directory != self.file_dialog.selected_path:
             print("selected new path ", self.file_dialog.selected_path)
             self.selected_directory = self.file_dialog.selected_path
-            self.app.open_downloaded_model(self.selected_directory)
             self.app.load_model(model_directory = self.selected_directory)
 
         if imgui.begin_main_menu_bar():

@@ -29,11 +29,11 @@ def create_grid():
         return mylittlenet.EigenGrid()
 
 
-def create_layer(np_array):
+def create_layer(np_array, name):
     if CURRENT_GRID == NUMPY:
-        return NumpyLayer(np_array)
+        return NumpyLayer(np_array, name)
     if CURRENT_GRID == NUMPY_AVERAGE:
-        return NumpyLayer(np_array)
+        return NumpyLayer(np_array, name)
     if CURRENT_GRID == NUMBA:
         return NumbaLayer(np_array)
     if CURRENT_GRID == EIGEN:

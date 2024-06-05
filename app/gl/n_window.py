@@ -1,3 +1,5 @@
+import time
+
 import OpenGL.GL as gl
 import glfw
 import imgui
@@ -33,7 +35,6 @@ class NWindow:
         self.n_color_map_v2_texture_shader = NShader()
         self.n_color_billboards_texture_shader = NShader()
 
-
     def calculate_min_zoom(self, n_net):
         content_width, content_height = n_net.total_width, n_net.total_height
         w, h = self.window_to_viewport_cords(self.width, self.height)
@@ -45,6 +46,12 @@ class NWindow:
         self.mouse_scroll_callback(self.window, 1, 1)
         print(w, h, content_width, content_height)
         print("Min zoom calculated:", self.min_zoom, self.max_zoom, self.zoom_step)
+
+    def calculate_zoom_for_bounds(self, content_width, content_height):
+        w, h = self.window_to_viewport_cords(self.width, self.height)
+        min_zoom_x = w / content_width / 1.2
+        min_zoom_y = h / content_height / 1.2
+        return min(min_zoom_x, min_zoom_y)
 
     def create_window(self):
         # Initialize OpenGL and create a window
@@ -64,11 +71,11 @@ class NWindow:
 
         glfw.make_context_current(self.window)
 
-
         # Check if window creation succeeded
         if not self.window:
             glfw.terminate()
             raise ValueError("Failed to create GLFW window")
+
     def set_callbacks(self):
         glfw.set_framebuffer_size_callback(self.window, self.frame_buffer_size_callback)
         glfw.set_scroll_callback(self.window, self.mouse_scroll_callback)
@@ -78,7 +85,7 @@ class NWindow:
         glfw.set_key_callback(self.window, self.window_key_callback)
 
     def start_main_loop(self):
-        while not glfw .window_should_close(self.window):
+        while not glfw.window_should_close(self.window):
             if glfw.get_key(self.window, glfw.KEY_ESCAPE) == glfw.PRESS:
                 glfw.set_window_should_close(self.window, True)
             if self.render_func:
@@ -86,7 +93,8 @@ class NWindow:
             glfw.poll_events()
 
     def close_window(self):
-        glfw.set_window_should_close(self.window,True)
+        glfw.set_window_should_close(self.window, True)
+
     def destroy_window(self):
         glfw.terminate()
 
@@ -116,7 +124,7 @@ class NWindow:
         sy = y / self.height * 2.0
         return sx, sy
 
-    def window_to_normalized_cords(self, x, y):
+    def window_to_ndc_cords(self, x, y):
         """
         window space (1280x1280) to NDC [-1,1] with [0,0] at the center
         :param x:
@@ -129,14 +137,14 @@ class NWindow:
 
     def window_to_world_cords(self, x, y):
         """
-        window space (1280x1280) to NDC [-1,1] with [0,0] at the center
+        window space (1280x1280) to WORLD cordinates (0,0, - W,H)
         :param x:
         :param y:
         :return:
         """
         sx = (2.0 * x) / self.width - 1.0
         sy = (2.0 * y) / self.height - 1
-        wx, wy = self.projection.window_to_world_point(sx,sy)
+        wx, wy = self.projection.ndc_to_world_point(sx, sy)
         return wx, wy
 
     def viewport_to_world_cords(self):
@@ -144,26 +152,26 @@ class NWindow:
         :return: current viewport in world coordinates
         '''
         # Window bottom left
-        x1, y1 = self.projection.window_to_world_point(-1, -1)
+        x1, y1 = self.projection.ndc_to_world_point(-1, -1)
         # Window top right
-        x2, y2 = self.projection.window_to_world_point(1, 1)
+        x2, y2 = self.projection.ndc_to_world_point(1, 1)
         w, h = x2 - x1, y2 - y1
         return (x1, y1, w, h, self.zoom_factor)
 
-    def world_coords_to_screen_coords(self, x1, y1, x2, y2):
+    def world_to_ndc_cords(self, x1, y1, x2, y2):
         '''
-        :return: world coordinates (for example x5400:y1300) to screen coords (-1, -1 top left corner, 1,1 top right corner)
+        :return: world coordinates (for example x5400:y1300) to ndc cords (-1, -1 top left corner, 1,1 top right corner)
         '''
         # Window bottom left
-        sx1, sy1 = self.projection.world_to_window_point(x1, y1)
+        sx1, sy1 = self.projection.world_to_ndc_point(x1, y1)
         # Window top right
-        sx2, sy2 = self.projection.world_to_window_point(x2, y2)
+        sx2, sy2 = self.projection.world_to_ndc_point(x2, y2)
 
         return (sx1, sy1, sx2, sy2, self.zoom_factor)
 
-    def screen_coords_to_window_coords(self, x1, y1, x2, y2):
+    def ndc_to_window_cords(self, x1, y1, x2, y2):
         '''
-        :return:  screen coordinates (-1, -1 top left corner, 1,1 top right corner) to window coordinates (0,0 top left, 1280,1280 top right)
+        :return:  ndc coordinates (-1, -1 top left corner, 1,1 top right corner) to window coordinates (0,0 top left, 1280,1280 top right)
         '''
         sx1 = (x1 + 1) * self.width / 2.0
         sy1 = (y1 + 1) * self.height / 2.0
@@ -171,13 +179,16 @@ class NWindow:
         sy2 = (y2 + 1) * self.height / 2.0
         return (sx1, sy1, sx2, sy2)
 
-    def world_coors_to_window_coords(self, x1, y1, x2, y2):
-        (sx1, sy1, sx2, sy2, zoom_factor) = self.world_coords_to_screen_coords(
+    def world_to_window_cords(self, x1, y1, x2, y2):
+        '''
+        :return:  WORLD coordinates  (for example x5400:y1300) to window coordinates (0,0 top left, 1280,1280 top right)
+        '''
+        (sx1, sy1, sx2, sy2, zoom_factor) = self.world_to_ndc_cords(
             x1,
             y1,
             x2,
             y2)
-        (wx1, wy1, wx2, wy2) = self.screen_coords_to_window_coords(sx1, sy1, sx2, sy2)
+        (wx1, wy1, wx2, wy2) = self.ndc_to_window_cords(sx1, sy1, sx2, sy2)
         return (wx1, wy1, wx2, wy2)
 
     def on_viewport_updated(self):
@@ -207,14 +218,7 @@ class NWindow:
         print('resize', self.width, self.height)
         self.on_viewport_updated()
 
-    def mouse_scroll_callback(self, window, x_offset, y_offset):
-        io = imgui.get_io()
-        if io.want_capture_mouse:
-            return
-
-        delta = - y_offset * self.zoom_step
-        new_zoom = np.log(self.zoom_factor) + delta  # Logarithmically adjust zoom
-        new_zoom = np.exp(new_zoom)  # Convert logarithmic scale back to linear scale
+    def zoom_to_point(self, zoom_x, zoom_y, new_zoom):
         self.zoom_factor = new_zoom
 
         if self.zoom_factor <= self.min_zoom:
@@ -222,9 +226,6 @@ class NWindow:
         if self.zoom_factor >= self.max_zoom:
             self.zoom_factor = self.max_zoom
 
-        mx = self.last_mouse_x - self.width / 2
-        my = self.last_mouse_y - self.height / 2
-        zoom_x, zoom_y = self.window_to_viewport_cords(mx, my)
         self.projection.zoom(zoom_x, zoom_y, self.zoom_factor)
         self.on_viewport_updated()
 
@@ -233,6 +234,18 @@ class NWindow:
         if self.formatted_zoom != formatted:
             self.formatted_zoom = formatted
             print("zoom: ", formatted)
+
+    def mouse_scroll_callback(self, window, x_offset, y_offset):
+        io = imgui.get_io()
+        if io.want_capture_mouse:
+            return
+
+        zoom_x, zoom_y = self.window_to_ndc_cords(self.last_mouse_x, self.last_mouse_y)
+        # print("zoom xy",zoom_x,zoom_y)
+        delta = - y_offset * self.zoom_step
+        new_zoom = np.log(self.zoom_factor) + delta  # Logarithmically adjust zoom
+        new_zoom = np.exp(new_zoom)  # Convert logarithmic scale back to linear scale
+        self.zoom_to_point(zoom_x, zoom_y, new_zoom)
 
     def mouse_button_callback(self, window, button, action, mods):
         io = imgui.get_io()
@@ -260,7 +273,6 @@ class NWindow:
         # Calculate the translation offset based on mouse movement
         dx = xpos - self.last_mouse_x
         dy = ypos - self.last_mouse_y
-
         dx = dx / self.width * 2.0
         dy = dy / self.height * 2.0
 
@@ -273,8 +285,9 @@ class NWindow:
 
         self.projection.translate_to(-1, -1)
         self.projection.zoom_to(self.min_zoom)
+        self.projection.set_aspect_ratio(self.aspect_ratio)
 
-        world_w, world_h = self.projection.world_to_window_point(n_net.total_width, n_net.total_height)
+        world_w, world_h = self.projection.world_to_ndc_point(n_net.total_width, n_net.total_height)
         # by default world is positioned (0,0) in the bottom left corner
         dx = self.width / 2
         dy = self.height / 2
@@ -282,7 +295,7 @@ class NWindow:
         dx = dx - world_w - (dx - world_w) / 2
         dy = dy / self.height * 2.0
         dy = dy - world_h - (dy - world_h) / 2
-        #self.projection.translate_by(dx, dy)
-        print(dx,dy)
-        self.projection.translate_to(-(1-dx),-(1-dy))
+        # self.projection.translate_by(dx, dy)
+        print(dx, dy)
+        self.projection.translate_to(-(1 - dx), -(1 - dy))
         self.on_viewport_updated()

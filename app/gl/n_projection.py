@@ -30,8 +30,9 @@ class Projection:
              0.0,
              1.0]
         ], dtype=np.float32)
+        self.aspect_ratio = None
 
-    def window_to_world_point(self, x, y):
+    def ndc_to_world_point(self, x, y):
         # Map window point in [-1,1] cords to world cords
         # Usage example: node_position = window_to_world_point(mouse_position)
         point = np.array([x, y, 0.0, 1.0], dtype=np.float32)
@@ -40,20 +41,15 @@ class Projection:
         world_point_homogeneous /= world_point_homogeneous[3]
         return [world_point_homogeneous[0], world_point_homogeneous[1]]
 
-    def world_to_window_point(self, x, y):
+    def world_to_ndc_point(self, x, y):
         point = np.array([x, y, 0.0, 1.0], dtype=np.float32)
         world_point_homogeneous = point @ self.matrix
         world_point_homogeneous /= world_point_homogeneous[3]
         return [world_point_homogeneous[0], world_point_homogeneous[1]]
 
-    def world_to_viewport_point(self, x, y):
-        point = self.world_to_window_point(x, y)
-        return [
-            (point[0] + 1) / 2,
-            (point[1] + 1) / 2
-        ]
 
     def set_aspect_ratio(self, aspect_ratio):
+        self.aspect_ratio = aspect_ratio
         self.matrix[0][0] = self.get_zoom() / aspect_ratio
 
     def get_translation(self):
@@ -102,6 +98,52 @@ class Projection:
 
         result = translation_matrix_1 @ zoom_matrix @ translation_matrix_2
         self.matrix = self.matrix @ result
+
+    def zoom_and_translate(self, x, y, new_zoom):
+        #  print("zoom and translate",x,y)
+        current_zoom = self.get_zoom()
+        zoom_factor = new_zoom / current_zoom
+        tx, ty = self.get_translation()
+        dx = tx - x
+        dy = ty - y
+
+        # mat4
+        # projection = mat4(
+        #     vec4(zoom_factor / aspect_ratio, 0.0, 0.0, 0.0),
+        #     vec4(0.0, zoom_factor, 0.0, 0.0),
+        #     vec4(0.0, 0.0, 1.0, 0.0),
+        #     vec4(
+        #         translation.x - anchor_x * (zoom_factor / aspect_ratio - 1.0),
+        #         translation.y - anchor_y * (zoom_factor - 1.0),
+        #         0.0,
+        #         1.0
+        #     )
+        # );
+
+        translation_matrix_1 = np.array([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [-dx, -dy, 0.0, 1.0]
+        ])
+
+
+        # Step 2: Apply zoom
+        zoom_matrix = np.array([
+            [zoom_factor, 0.0, 0.0, 0.0],
+            [0.0, zoom_factor, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0]
+        ])
+        result = translation_matrix_1 @ zoom_matrix # @ translation_matrix_2
+        #self.matrix = self.matrix @ result
+        self.matrix[3][0] -= dx
+        self.matrix[3][1] -= dy
+        # self.matrix[0][0] = new_zoom# / self.aspect_ratio
+        # self.matrix[1][1] = new_zoom
+        # self.matrix[3][0] = x * (zoom_factor / self.aspect_ratio)
+        # self.matrix[3][1] = y * zoom_factor
+        # Step 4: Set the absolute translation
 
     def zoom_to(self, new_zoom):
         self.matrix[0][0] = new_zoom

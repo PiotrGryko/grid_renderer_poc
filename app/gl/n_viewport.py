@@ -7,20 +7,27 @@ class VisibleGrid:
     Visible data bounds (world bounds)
     Factor represents the details factor
     for example if factor is 10, it will fetch every 10th row and column
+
+
+    arguments are visible bounds clamped to 0-grid_width or 0-grid_height
+    Visible bounds are in float
+    We need to map them to correct columns and rows
+
     """
 
     def __init__(self, x1, y1, x2, y2, padding, factor, zoom):
         self.padding = padding
-        self.x1 = x1
-        self.y1 = y1
-        self.x2 = x2
-        self.y2 = y2
+        self.x1 = math.ceil(x1 / factor) * factor
+        self.y1 = math.ceil(y1 / factor) * factor
+        self.x2 = int(x2 / factor) * factor
+        self.y2 = int(y2 / factor) * factor
         self.w = max(0, self.x2 - self.x1)
         self.h = max(0, self.y2 - self.y1)
         self.id = f"{x1}-{y1}-{x2}-{y2}-{factor}"
         self.factor = factor
-        self.offset_x = x1
-        self.offset_y = y1
+
+        self.offset_x = self.x1
+        self.offset_y = self.y1
 
         self.zoom = zoom
         self.bsp_leaf_id = None
@@ -57,10 +64,11 @@ class NViewport:
     def __init__(self, n_net, viewport_w, viewport_h):
         self.visible_data = None
         self.n_net = n_net
-        self.x1 = 0
-        self.y1 = 0
-        self.x2 = 0
-        self.y2 = 0
+        # bounds of the entire world
+        self.world_x1 = 0
+        self.world_y1 = 0
+        self.world_x2 = 0
+        self.world_y2 = 0
         self.viewport_w = viewport_w
         self.viewport_h = viewport_h
 
@@ -70,8 +78,8 @@ class NViewport:
         self.power_of_two = True
 
     def set_grid_size(self, width, height):
-        self.x2 = width
-        self.y2 = height
+        self.world_x2 = width
+        self.world_y2 = height
 
     def get_details_factor(self, viewport):
         """
@@ -122,22 +130,24 @@ class NViewport:
         start_time = time.time()
         x, y, w, h, zoom = viewport
 
-        x1 = int(max(x, self.x1))
-        y1 = int(max(y, self.y1))
-        x2 = math.ceil(min(x + w, self.x2))
-        y2 = math.ceil(min(y + h, self.y2))
+        x1 = max(x, self.world_x1)
+        y1 = max(y, self.world_y1)
+        x2 = min(x + w, self.world_x2)
+        y2 = min(y + h, self.world_y2)
         width = x2 - x1
         height = y2 - y1
         factor, fraction = self.get_details_factor(viewport)
-        padding = int(w / 6)
+        # We make visible window a little bit larger by adding padding around it
+        # set padding to 0 for easier debugging
+        padding = 0  # int(w / 6)
         updated = False
 
         if self.visible_data is None or not self.visible_data.contains(x1, y1, x2, y2, factor):
             self.visible_data = VisibleGrid(
                 max(0, x1 - padding),
                 max(0, y1 - padding),
-                min(x1 - padding + width + 2 * padding, self.x2),
-                min(y1 - padding + height + 2 * padding, self.y2),
+                min(x1 - padding + width + (2 * padding), self.world_x2),
+                min(y1 - padding + height + (2 * padding), self.world_y2),
                 padding,
                 factor,
                 zoom)

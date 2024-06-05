@@ -14,6 +14,7 @@ class NNet:
         self.n_window = n_window
         self.color_theme = color_theme
         self.layers = []
+        self.layers_names = []
         self.grid_columns_count = 0
         self.grid_rows_count = 0
         self.total_width = 0
@@ -25,30 +26,36 @@ class NNet:
     def init_from_size(self, all_layers_sizes):
         print("Init net from sizes")
         layers = []
+        names = []
         print("Generating layers data")
-        for size in all_layers_sizes:
+        for index, size in enumerate(all_layers_sizes):
             size_x = math.ceil(math.sqrt(size))
             size_y = size_x
             calculated_size = [size_x, size_y]
             rows_count, columns_count = calculated_size[0], calculated_size[1]
             layer_grid = np.random.uniform(0, 1, (rows_count, columns_count)).astype(np.float32)
             layers.append(layer_grid)
+            names.append(f"basic_layer_{index}")
         print("Creating layers")
-        self.create_layers(layers)
+        self.create_layers(layers, names)
         self.init_grid()
 
-    def init_from_np_arrays(self, all_layers):
+    def init_from_np_arrays(self, all_layers, names):
         print("Init net from np arrays")
+        if len(all_layers) != len(names):
+            print("layers size doenst match names size")
+            return
         layers = []
         print("Generating layers data")
-        for layer_grid in all_layers:
+        for index, layer_grid in enumerate(all_layers):
             layers.append(layer_grid)
         print("Creating layers")
-        self.create_layers(layers)
+        self.create_layers(layers, names)
         self.init_grid()
 
     def init_from_last_memory_files(self):
         layers = []
+        names = []
         files = os.listdir("memfile")
 
         def numerical_sort_key(value):
@@ -70,20 +77,23 @@ class NNet:
                 dtype = np.dtype(metadata["dtype"])
                 memmap = np.memmap(file_name, dtype=dtype, mode='r', shape=shape)
                 layers.append(memmap)
-        self.create_layers(layers)
+                names.append(file_name)
+        self.create_layers(layers, names)
         self.init_grid()
 
-    def init_from_tensors(self, tensors, save_to_memfile=False):
+    def init_from_tensors(self, names_parameters, save_to_memfile=False):
         print("Init net from tensors")
         start_time = time.time()
-        size = len(tensors)
+        size = len(names_parameters)
         layers = []
+        names = []
         print("")
 
-        for index, tensor in enumerate(tensors):
+        for index, (name, tensor) in enumerate(names_parameters):
             print(f"\rDetaching tensors: {int(100 * index / size)}%", end="")
             tensor_numpy = tensor.detach().numpy()
             layers.append(tensor_numpy)
+            names.append(name)
 
             if save_to_memfile:
                 # Create a memory-mapped file
@@ -105,15 +115,16 @@ class NNet:
 
         print(f"\rDetaching tensors: 100%", time.time() - start_time, "s", end="")
         print("")
-        self.create_layers(layers)
+        self.create_layers(layers, names)
         self.init_grid()
 
-    def create_layers(self, all_layers):
+    def create_layers(self, all_layers, all_names):
         start_time = time.time()
         self.layers = []
         print("Creating layers", len(all_layers))
         for index, layer_data in enumerate(all_layers):
-            grid_layer = create_layer(layer_data)
+            name = all_names[index]
+            grid_layer = create_layer(layer_data, name)
             self.layers.append(grid_layer)
         print(f"Layers created", time.time() - start_time, "s")
 

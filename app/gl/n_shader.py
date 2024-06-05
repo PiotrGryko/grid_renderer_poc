@@ -6,6 +6,7 @@ import numpy as np
 
 ### V2 SHADERS, for n_scene_v2
 
+
 cmap_v2_texture_vertex_shader_source = """
 #version 330 core
 
@@ -16,12 +17,14 @@ layout(location = 2) in vec2 prev_tex_coord;
 uniform mat4 projection_matrix;
 uniform float tex_unit = 0; // 0 or 1 
 
+
 out vec2 frag_tex_coord_one;
 out vec2 frag_tex_coord_two;
 
 
 void main()
 {
+
     // current quad
     frag_tex_coord_one = tex_coord;
     // prev quad mapped to current
@@ -29,6 +32,50 @@ void main()
     gl_Position =  projection_matrix * vec4(position,0.0,1.0);
 }
 """
+
+
+#
+# cmap_v2_texture_vertex_shader_source = """
+# #version 330 core
+#
+# layout(location = 0) in vec2 position;
+# layout(location = 1) in vec2 tex_coord;
+# layout(location = 2) in vec2 prev_tex_coord;
+#
+# uniform mat4 projection_matrix;
+# uniform float tex_unit = 0; // 0 or 1
+#
+# uniform vec2 position_offset_one = vec2(0.0, 0.0);
+# uniform vec2 size_one = vec2(0.0, 0.0);
+# uniform int factor_one =1;
+#
+# uniform vec2 position_offset_two = vec2(0.0, 0.0);
+# uniform vec2 size_two = vec2(0.0, 0.0);
+# uniform int factor_two =1;
+#
+# out vec2 frag_tex_coord_one;
+# out vec2 frag_tex_coord_two;
+#
+#
+# void main()
+# {
+#
+#     float scaled_x_one = position.x * factor_one;
+#     float scaled_y_one = position.y * factor_one;
+#     vec2 instance_position_one = vec2(scaled_x_one, scaled_y_one);
+#
+#     float scaled_x_two = position.x * factor_two;
+#     float scaled_y_two = position.y * factor_two;
+#     vec2 instance_position_two = vec2(scaled_x_two, scaled_y_two);
+#
+#     // current quad
+#     frag_tex_coord_one = tex_coord;
+#     // prev quad mapped to current
+#     frag_tex_coord_two = prev_tex_coord;
+#     // gl_Position =  projection_matrix * vec4(position,0.0,1.0);
+#     gl_Position =  projection_matrix * vec4(instance_position_one  + position_offset_one,0.0,1.0);
+# }
+# """
 # Fragment shader source code for drawing instances
 cmap_v2_texture_fragment_shader_source = """
 #version 330 core
@@ -70,11 +117,12 @@ void main() {
     }
     else{
         if(prev_value == 0 || prev_value == -1){
-            intensified_color_value = clamp(base_value  * color_multiplier, 0, 1);
-        }else{
-            intensified_color_value = clamp(mix(base_value, prev_value, tex_mix_factor)  * color_multiplier, 0, 1);
+             intensified_color_value = clamp(base_value  * color_multiplier, 0, 1);
         }
-        
+        else{
+            float mixed_color = mix(base_value, prev_value, tex_mix_factor);
+            intensified_color_value = clamp(mixed_color  * color_multiplier, 0, 1);
+        }
         vec3 color = texture(color_map, intensified_color_value).rgb;
         fragColor = vec4(color,fading_factor);
      }
@@ -330,7 +378,6 @@ void main() {
 
 }
 """
-
 
 
 class NShader:

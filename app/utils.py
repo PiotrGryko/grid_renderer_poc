@@ -28,7 +28,7 @@ class FancyUtilsClass:
         base_image = Image.new('L', (w,h), 255)  # 'L' mode for (8-bit pixels, black and white)
         draw = ImageDraw.Draw(base_image)
 
-        logo_image = Image.open('res/logo.png').convert('L')
+        logo_image = Image.open('res/logo5.webp').convert('L')
         logo_image = ImageOps.invert(logo_image)
         #webp_image.save('res/logo.png', 'PNG')
         logo_image = ImageOps.flip(logo_image)
@@ -40,6 +40,7 @@ class FancyUtilsClass:
 
         print("logo shape",text_array.shape)
         normalized_array = text_array / 255.0
+        normalized_array = np.where(normalized_array > 0.5, 1, -1)
         #
         # plt.imshow(normalized_array, cmap='gray')
         # plt.show()
