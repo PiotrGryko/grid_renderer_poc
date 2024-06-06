@@ -154,7 +154,9 @@ class OpenGLApplication:
             welcome_message = self.utils.create_logo_message()
 
             self.n_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
-
+        self.n_scene.destroy()
+        self.n_scene = None
+        self.n_scene = NSceneV2(self.n_net, self.n_viewport, self.n_window, self.buffer_width, self.buffer_height)
         self.utils.print_memory_usage()
         self.reload_view()
 

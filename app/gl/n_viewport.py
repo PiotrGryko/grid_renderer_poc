@@ -30,7 +30,6 @@ class VisibleGrid:
         self.offset_y = self.y1
 
         self.zoom = zoom
-        self.bsp_leaf_id = None
 
         # x1, x2, y1, y2 represent the WORLD bounds
         # Factor N means that the data inside bounds is sampled every N row and column
@@ -48,16 +47,23 @@ class VisibleGrid:
         self.fy2 = math.ceil(self.y2 / factor)
 
     def contains(self, x1, y1, x2, y2, factor):
-        n_w = x2 - x1
-        n_h = y2 - y1
+        n_x1 = math.ceil(x1 / factor) * factor
+        n_y1 = math.ceil(y1 / factor) * factor
+        n_x2 = int(x2 / factor) * factor
+        n_y2 = int(y2 / factor) * factor
 
-        return (x1 >= self.x1
-                and y1 >= self.y1
-                and x2 <= self.x2
-                and y2 <= self.y2
+        n_w = n_x2 - n_x1
+        n_h = n_y2 - n_y1
+
+
+        return (n_x1 >= self.x1
+                and n_y1 >= self.y1
+                and n_x2 <= self.x2
+                and n_y2 <= self.y2
                 and max(0, self.w - 4 * self.padding) <= n_w
                 and max(0, self.h - 4 * self.padding) <= n_h
                 and factor == self.factor)
+
 
 
 class NViewport:
@@ -139,7 +145,7 @@ class NViewport:
         factor, fraction = self.get_details_factor(viewport)
         # We make visible window a little bit larger by adding padding around it
         # set padding to 0 for easier debugging
-        padding = 0  # int(w / 6)
+        padding = int(w / 6)
         updated = False
 
         if self.visible_data is None or not self.visible_data.contains(x1, y1, x2, y2, factor):

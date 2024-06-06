@@ -5,6 +5,8 @@ from enum import Enum
 import OpenGL.GL as gl
 import numpy as np
 
+from app.gl.n_blend_calculator import NBlendCalculator
+
 
 class Quad:
     def __init__(self):
@@ -417,25 +419,6 @@ class EntityV2:
         self.quad.draw()
 
 
-class MoveDirection(Enum):
-    DRAG = 1
-    ZOOM_IN = 2
-    ZOOM_OUT = 3
-
-    def changed_zoom_direction(self, other):
-        # print("changed zoom direction", self, other)
-        if other is None:
-            return False
-        if other is MoveDirection.DRAG:
-            return False
-        if self is MoveDirection.DRAG:
-            return False
-        if self == other:
-            return False
-        else:
-            return True
-
-
 class NSceneV2:
     def __init__(self, n_net, n_viewport, n_window, buffer_w, buffer_h):
         self.n_net = n_net
@@ -452,31 +435,15 @@ class NSceneV2:
         self.updated = False
 
         self.current_entity = None
-        self.zooming_in = True
 
-        # Progress 1-0 from lower level of detail to higher level
-        # For example 1 means we are transitioning between 12 and 6 and we are at 12
-        # 0 means we are transitioning between 12 and 6 and we are at 6
-        self.current_level_progress = None
-
-        self.last_direction = MoveDirection.ZOOM_IN
         self.enable_blending = True
+        self.dragged = False
+
+        self.blend_calculator = NBlendCalculator()
 
     def destroy(self):
         self.entity1.destroy()
         self.entity2.destroy()
-
-    def get_move_direction(self, new_quad):
-        if self.current_entity is None:
-            return MoveDirection.ZOOM_IN
-        current_factor = self.current_entity.visible_grid_part.zoom
-        new_factor = new_quad.zoom
-        if new_factor > current_factor:
-            return MoveDirection.ZOOM_IN
-        elif new_factor < current_factor:
-            return MoveDirection.ZOOM_OUT
-        elif new_factor == current_factor:
-            return MoveDirection.DRAG
 
     # @profile
     def update_scene_entities(self):
@@ -487,33 +454,26 @@ class NSceneV2:
         current_quad = self.n_viewport.visible_data
         should_update = True
 
+
         if self.entity1.visible_grid_part == current_quad:
             should_update = False
         if self.entity2.visible_grid_part == current_quad:
             should_update = False
 
-        reached_min_zoom = self.n_window.zoom_factor == self.n_window.min_zoom
-        if reached_min_zoom:
-            # When max zoomed out reset to default
-            self.zooming_in = True
-            self.last_direction = MoveDirection.ZOOM_IN
-        zoom_turnaround = False
         if should_update:
-            if self.current_entity is not None:
-                new_direction = self.get_move_direction(current_quad)
-                zoom_turnaround = self.last_direction.changed_zoom_direction(new_direction)
-                self.last_direction = new_direction
-                self.zooming_in = current_quad.zoom >= self.current_entity.visible_grid_part.zoom
-            zoom_turnaround = False
-            if zoom_turnaround:
-                self.should_update_entity2 = self.current_entity == self.entity2
+
+            if self.current_entity is not None and self.current_entity.visible_grid_part.zoom == current_quad.zoom:
+                self.dragged = True
             else:
-                # Update entity2 if its current and the detail factor didn't change
-                if self.current_entity == self.entity2 and self.entity2.visible_grid_part.factor == current_quad.factor:
-                    self.should_update_entity2 = True
-                # Update entity2 if the current is entity1 and the detail factor changed.
-                if self.current_entity == self.entity1 and self.entity1.visible_grid_part.factor != current_quad.factor:
-                    self.should_update_entity2 = True
+                self.dragged = False
+
+            # Update entity2 if its current and the detail factor didn't change
+            if self.current_entity == self.entity2 and self.entity2.visible_grid_part.factor == current_quad.factor:
+                self.should_update_entity2 = True
+            # Update entity2 if the current is entity1 and the detail factor changed.
+            if self.current_entity == self.entity1 and self.entity1.visible_grid_part.factor != current_quad.factor:
+                self.should_update_entity2 = True
+
             if self.should_update_entity2 and self.enable_blending:
                 self.should_update_entity2 = False
                 self.entity2.update_entity(self.n_net,
@@ -527,11 +487,6 @@ class NSceneV2:
                     self.entity2.visible_grid_part.offset_y,
                     self.entity2.visible_grid_part.factor
                 )
-                # self.entity2.quad.update_quad_position_old(
-                #     0, 0,
-                #     self.current_width,
-                #     self.current_height
-                # )
                 if self.entity1.visible_grid_part is not None:
                     self.entity2.quad.update_second_texture_coordinates(
                         self.current_width,
@@ -544,8 +499,7 @@ class NSceneV2:
                 self.current_entity = self.entity2
                 print("update entity2 ",
                       "current factor", self.entity2.current_texture_factor,
-                      "prev factor", self.entity2.second_texture_factor,
-                      "zoom turnaround", zoom_turnaround)
+                      "prev factor", self.entity2.second_texture_factor)
             else:
                 self.updated = True
                 self.entity1.update_entity(self.n_net, current_quad, current_quad.factor)
@@ -558,11 +512,6 @@ class NSceneV2:
                     self.entity1.visible_grid_part.offset_y,
                     self.entity1.visible_grid_part.factor
                 )
-                # self.entity1.quad.update_quad_position_old(
-                #     0, 0,
-                #     self.current_width,
-                #     self.current_height
-                # )
                 if self.entity2.visible_grid_part is not None:
                     self.entity1.quad.update_second_texture_coordinates(
                         self.current_width,
@@ -577,119 +526,21 @@ class NSceneV2:
                 if self.entity2.visible_grid_part is not None:
                     print("update entity1 ",
                           "current factor", self.entity1.current_texture_factor,
-                          "prev factor", self.entity1.second_texture_factor,
-                          "zoom turnaround", zoom_turnaround)
+                          "prev factor", self.entity1.second_texture_factor)
                 else:
-                    print("update entity 1", "zoom turnaround", zoom_turnaround)
-
-    def draw_textures_old(self, n_color_map_v2_texture_shader, alpha_factor):
-        factor = self.n_viewport.current_factor
-        factor_delta = self.n_viewport.current_factor_delta
-
-        def draw_entity_one(alpha):
-            n_color_map_v2_texture_shader.use()
-            n_color_map_v2_texture_shader.update_texture_width(self.current_width)
-            n_color_map_v2_texture_shader.update_texture_height(self.current_height)
-            n_color_map_v2_texture_shader.update_target_width(self.entity1.visible_grid_part.w)
-            n_color_map_v2_texture_shader.update_target_height(self.entity1.visible_grid_part.h)
-            n_color_map_v2_texture_shader.update_details_factor(self.entity1.visible_grid_part.factor)
-            n_color_map_v2_texture_shader.update_details_factor_one(self.entity1.visible_grid_part.factor)
-            n_color_map_v2_texture_shader.update_details_factor_two(self.entity1.visible_grid_part.factor)
-
-            n_color_map_v2_texture_shader.update_position_offset(self.entity1.visible_grid_part.offset_x,
-                                                                 self.entity1.visible_grid_part.offset_y)
-
-            n_color_map_v2_texture_shader.update_position_offset_one(self.entity1.visible_grid_part.offset_x,
-                                                                     self.entity1.visible_grid_part.offset_y)
-
-            n_color_map_v2_texture_shader.update_position_offset_two(self.entity1.visible_grid_part.offset_x,
-                                                                     self.entity1.visible_grid_part.offset_y)
-            n_color_map_v2_texture_shader.select_texture(0)
-            n_color_map_v2_texture_shader.mix_textures(mix_factor)
-            n_color_map_v2_texture_shader.update_fading_factor(alpha)
-            gl.glActiveTexture(self.entity1.gl_texture_unit)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, self.entity1.texture)
-            self.entity1.draw_texture()
-
-        def draw_entity_two(alpha):
-            if self.entity2.visible_grid_part is None:
-                return
-            n_color_map_v2_texture_shader.use()
-            n_color_map_v2_texture_shader.update_texture_width(self.current_width)
-            n_color_map_v2_texture_shader.update_texture_height(self.current_height)
-            n_color_map_v2_texture_shader.update_target_width(self.entity2.visible_grid_part.w)
-            n_color_map_v2_texture_shader.update_target_height(self.entity2.visible_grid_part.h)
-            n_color_map_v2_texture_shader.update_details_factor(self.entity2.visible_grid_part.factor)
-            n_color_map_v2_texture_shader.update_details_factor_one(self.entity2.visible_grid_part.factor)
-            n_color_map_v2_texture_shader.update_details_factor_two(self.entity2.visible_grid_part.factor)
-
-            n_color_map_v2_texture_shader.update_position_offset(self.entity2.visible_grid_part.offset_x,
-                                                                 self.entity2.visible_grid_part.offset_y)
-
-            n_color_map_v2_texture_shader.update_position_offset_one(self.entity2.visible_grid_part.offset_x,
-                                                                     self.entity2.visible_grid_part.offset_y)
-
-            n_color_map_v2_texture_shader.update_position_offset_two(self.entity2.visible_grid_part.offset_x,
-                                                                     self.entity2.visible_grid_part.offset_y)
-            n_color_map_v2_texture_shader.select_texture(1)
-            n_color_map_v2_texture_shader.mix_textures(mix_factor)
-            n_color_map_v2_texture_shader.update_fading_factor(alpha)
-            gl.glActiveTexture(self.entity2.gl_texture_unit)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, self.entity2.texture)
-            self.entity2.draw_texture()
-
-        mix_factor = factor_delta if self.zooming_in else 1 - factor_delta
-        if not self.enable_blending:
-            mix_factor = 0
-        # if self.current_entity == self.entity2:
-        #     n_color_map_v2_texture_shader.select_texture(1)
-        #     n_color_map_v2_texture_shader.mix_textures(mix_factor)
-        #     n_color_map_v2_texture_shader.update_fading_factor(alpha_factor)
-        #     gl.glActiveTexture(self.entity2.gl_texture_unit)
-        #     gl.glBindTexture(gl.GL_TEXTURE_2D, self.entity2.texture)
-        #     self.entity2.draw_texture()
-        # else:
-        #     n_color_map_v2_texture_shader.select_texture(0)
-        #     n_color_map_v2_texture_shader.mix_textures(mix_factor)
-        #     n_color_map_v2_texture_shader.update_fading_factor(alpha_factor)
-        #     gl.glActiveTexture(self.entity1.gl_texture_unit)
-        #     gl.glBindTexture(gl.GL_TEXTURE_2D, self.entity1.texture)
-        #     self.entity1.draw_texture()
-        mf = mix_factor / 4
-        if self.current_entity == self.entity2:
-            # draw_entity_one(1)
-            draw_entity_two(alpha_factor)
-        else:
-            # draw_entity_two(1)
-            draw_entity_one(alpha_factor)
+                    print("update entity 1")
 
     def draw_textures(self, n_color_map_v2_texture_shader, alpha_factor):
-        factor = self.n_viewport.current_factor
+        # factor = self.n_viewport.current_factor
         factor_delta = self.n_viewport.current_factor_delta
-        mix_factor = factor_delta  if self.zooming_in else 1 - factor_delta
-        new_factor = mix_factor
+        # mix_factor = factor_delta if self.zooming_in else 1 - factor_delta
 
-        current_factor = factor
-        upper_factor = factor *2
-
-
-        if self.current_entity.second_texture_factor is  None:
-            new_factor = factor_delta
-        elif self.current_entity.current_texture_factor < self.current_entity.second_texture_factor:
-            # zooming in
-            new_factor = factor_delta
-        else:
-            new_factor = factor_delta
-
-        mix_factor = new_factor
-
-        if self.current_level_progress != factor_delta:
-            self.current_level_progress = factor_delta
-
-            print("current entity factor", self.current_entity.current_texture_factor,
-                  "second_texture_factor", self.current_entity.second_texture_factor,
-                  "progress", factor_delta,
-                  "mix factor",mix_factor, upper_factor)
+        mix_factor = self.blend_calculator.get_second_texture_mix_factor(
+            current_level=self.current_entity.current_texture_factor,
+            prev_level=self.current_entity.second_texture_factor,
+            delta=factor_delta,
+            reached_min_zoom=self.n_window.zoom_factor == self.n_window.min_zoom,
+            dragged=self.dragged)
 
         n_color_map_v2_texture_shader.use()
         if not self.enable_blending:
