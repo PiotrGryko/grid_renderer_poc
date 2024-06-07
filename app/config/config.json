@@ -1,8 +1,8 @@
 {
-    "color_name": "PiYG",
-    "buffer_width": 1000,
-    "buffer_height": 1000,
+    "color_name": "PuOr",
+    "buffer_width": 2500,
+    "buffer_height": 2500,
     "enable_blend": true,
     "power_of_two": true,
-    "last_directory": "/Users/piotrgryko/PycharmProjects/Models/LavanyaM_lavan"
+    "last_directory": "/Users/piotrgryko/PycharmProjects/Models/google-bert_bert-base-cased"
 }

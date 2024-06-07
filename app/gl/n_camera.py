@@ -26,7 +26,7 @@ class CameraAnimation:
         y = cy - dify
         return x, y
 
-    def animate_to_bounds(self, left, bottom, right, top, duration=3.0):
+    def animate_to_bounds(self, left, bottom, right, top, duration=1.0):
         # Calculate the target width and height in world coordinates
         world_w, world_h = right - left, top - bottom
 
@@ -62,7 +62,6 @@ class CameraAnimation:
             print("animation finished")
             self.is_animating = False
         elif self.is_animating:
-            # print("stage", stage, delta_one)
             if stage == 1:
                 tx, ty = self.n_window.projection.get_translation()
                 current_x = self.lerp(tx, self.target_x, delta_one)

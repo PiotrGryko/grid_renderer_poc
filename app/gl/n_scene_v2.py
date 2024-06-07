@@ -98,27 +98,27 @@ class Quad:
             gl.glDeleteVertexArrays(1, [self.vao])
             self.created = False
 
-    def update_quad_position(self, x1, y1, x2, y2, offset_x, offset_y, factor):
-        if not self.created:
-            return
-        # The quad x1,y1,x2,y2 is always 0,0,width,height
-        # The position of the quad in the world is offset + size * factor
-
-        x1 = offset_x + x1 * factor
-        x2 = offset_x + x2 * factor
-        y1 = offset_y + y1 * factor
-        y2 = offset_y + y2 * factor
-        self.vertices = np.array([
-            x1, y1,  # Bottom-left
-            x2, y1,  # Bottom-right
-            x2, y2,  # Top-right
-            x1, y2,  # Top-left
-        ], dtype=np.float32)
-        # Bind the VBO
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-
-        # Update the buffer data
-        gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self.vertices.nbytes, self.vertices)
+    # def update_quad_position(self, x1, y1, x2, y2, offset_x, offset_y, factor):
+    #     if not self.created:
+    #         return
+    #     # The quad x1,y1,x2,y2 is always 0,0,width,height
+    #     # The position of the quad in the world is offset + size * factor
+    #
+    #     x1 = offset_x + x1 * factor
+    #     x2 = offset_x + x2 * factor
+    #     y1 = offset_y + y1 * factor
+    #     y2 = offset_y + y2 * factor
+    #     self.vertices = np.array([
+    #         x1, y1,  # Bottom-left
+    #         x2, y1,  # Bottom-right
+    #         x2, y2,  # Top-right
+    #         x1, y2,  # Top-left
+    #     ], dtype=np.float32)
+    #     # Bind the VBO
+    #     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
+    #
+    #     # Update the buffer data
+    #     gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self.vertices.nbytes, self.vertices)
 
     def update_quad_position_old(self, x1, y1, x2, y2):
         if not self.created:
@@ -365,18 +365,20 @@ class EntityV2:
 
         # print("View data updated", (time.time() - start_time) * 1000, "ms")
 
-    def update_entity(self, n_net, visible_grid_part, factor):
+    def update_entity(self, visible_grid_part):
         self.visible_grid_part = visible_grid_part
         self.current_texture_factor = self.visible_grid_part.factor
-        chunks, dimensions = n_net.get_subgrid_chunks_grid_dimensions(
-            self.visible_grid_part.x1,
-            self.visible_grid_part.y1,
-            self.visible_grid_part.x2,
-            self.visible_grid_part.y2,
-            factor)
+        chunks, dimensions = visible_grid_part.grab_visible_data()
         self.update_data(
             chunks,
             dimensions)
+
+    def update_quad_position(self, buffer_w, buffer_h):
+        if self.visible_grid_part is None:
+            print("Missing grid bounds!")
+            return
+        x1, y1, x2, y2 = self.visible_grid_part.get_quad_position(buffer_w, buffer_h)
+        self.quad.update_quad_position_old(x1, y1, x2, y2)
 
     def draw_points(self, count):
         if not self.created:
@@ -432,7 +434,6 @@ class NSceneV2:
         self.entity2 = EntityV2(gl.GL_TEXTURE3)
 
         self.should_update_entity2 = False
-        self.updated = False
 
         self.current_entity = None
 
@@ -454,7 +455,6 @@ class NSceneV2:
         current_quad = self.n_viewport.visible_data
         should_update = True
 
-
         if self.entity1.visible_grid_part == current_quad:
             should_update = False
         if self.entity2.visible_grid_part == current_quad:
@@ -473,20 +473,12 @@ class NSceneV2:
             # Update entity2 if the current is entity1 and the detail factor changed.
             if self.current_entity == self.entity1 and self.entity1.visible_grid_part.factor != current_quad.factor:
                 self.should_update_entity2 = True
-
+            # Skip entity 2 if blending is disabled
             if self.should_update_entity2 and self.enable_blending:
                 self.should_update_entity2 = False
-                self.entity2.update_entity(self.n_net,
-                                           current_quad,
-                                           current_quad.factor)
-                self.entity2.quad.update_quad_position(
-                    0, 0,
-                    self.current_width,
-                    self.current_height,
-                    self.entity2.visible_grid_part.offset_x,
-                    self.entity2.visible_grid_part.offset_y,
-                    self.entity2.visible_grid_part.factor
-                )
+                self.entity2.update_entity(current_quad)
+                self.entity2.update_quad_position(self.current_width, self.current_height)
+
                 if self.entity1.visible_grid_part is not None:
                     self.entity2.quad.update_second_texture_coordinates(
                         self.current_width,
@@ -501,17 +493,9 @@ class NSceneV2:
                       "current factor", self.entity2.current_texture_factor,
                       "prev factor", self.entity2.second_texture_factor)
             else:
-                self.updated = True
-                self.entity1.update_entity(self.n_net, current_quad, current_quad.factor)
+                self.entity1.update_entity(current_quad)
+                self.entity1.update_quad_position(self.current_width, self.current_height)
 
-                self.entity1.quad.update_quad_position(
-                    0, 0,
-                    self.current_width,
-                    self.current_height,
-                    self.entity1.visible_grid_part.offset_x,
-                    self.entity1.visible_grid_part.offset_y,
-                    self.entity1.visible_grid_part.factor
-                )
                 if self.entity2.visible_grid_part is not None:
                     self.entity1.quad.update_second_texture_coordinates(
                         self.current_width,

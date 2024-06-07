@@ -15,7 +15,7 @@ class VisibleGrid:
 
     """
 
-    def __init__(self, x1, y1, x2, y2, padding, factor, zoom):
+    def __init__(self, x1, y1, x2, y2, padding, factor, zoom, n_net):
         self.padding = padding
         self.x1 = math.ceil(x1 / factor) * factor
         self.y1 = math.ceil(y1 / factor) * factor
@@ -30,6 +30,7 @@ class VisibleGrid:
         self.offset_y = self.y1
 
         self.zoom = zoom
+        self.n_net = n_net
 
         # x1, x2, y1, y2 represent the WORLD bounds
         # Factor N means that the data inside bounds is sampled every N row and column
@@ -46,6 +47,25 @@ class VisibleGrid:
         self.fy1 = int(self.y1 / factor)
         self.fy2 = math.ceil(self.y2 / factor)
 
+    def grab_visible_data(self):
+        # Grab the numpy data
+        chunks, dimensions = self.n_net.get_subgrid_chunks_grid_dimensions(
+            self.x1,
+            self.y1,
+            self.x2,
+            self.y2,
+            self.factor)
+        return chunks, dimensions
+
+    def get_quad_position(self, width, height):
+        # The quad x1,y1,x2,y2 is always 0,0,width,height
+        # The position of the quad in the world is offset + size * factor
+        x1 = self.offset_x + 0 * self.factor
+        x2 = self.offset_x + width * self.factor
+        y1 = self.offset_y + 0 * self.factor
+        y2 = self.offset_y + height * self.factor
+        return x1, y1, x2, y2
+
     def contains(self, x1, y1, x2, y2, factor):
         n_x1 = math.ceil(x1 / factor) * factor
         n_y1 = math.ceil(y1 / factor) * factor
@@ -55,7 +75,6 @@ class VisibleGrid:
         n_w = n_x2 - n_x1
         n_h = n_y2 - n_y1
 
-
         return (n_x1 >= self.x1
                 and n_y1 >= self.y1
                 and n_x2 <= self.x2
@@ -63,7 +82,6 @@ class VisibleGrid:
                 and max(0, self.w - 4 * self.padding) <= n_w
                 and max(0, self.h - 4 * self.padding) <= n_h
                 and factor == self.factor)
-
 
 
 class NViewport:
@@ -156,7 +174,8 @@ class NViewport:
                 min(y1 - padding + height + (2 * padding), self.world_y2),
                 padding,
                 factor,
-                zoom)
+                zoom,
+                self.n_net)
             updated = True
 
         if updated:

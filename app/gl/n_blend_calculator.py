@@ -6,71 +6,57 @@ class NBlendCalculator:
         self.min_zoom_level = 0
         self.last_prev = 0
         self.switched = False
+        self.zooming_in = True
 
     def get_second_texture_mix_factor(self, current_level, prev_level, delta, reached_min_zoom, dragged):
 
-        # print("is outisde",is_outside)
-        # switched = False
-        # if current_level == self.last_prev:
-        #     switched = True
-        #
-        # self.last_prev = prev_level
-
-        # #came from top
-        # if switched:
-        #     prev_visibility = 0
-        # self.levels_visibility[current_level] = 1-delta
-        # empty_prev_level = prev_level is None or prev_level not in self.levels_visibility
-        # prev_level_scrolled = 0 if empty_prev_level else round(self.levels_visibility[prev_level])
-        # if prev_level_scrolled == 0:
-        #     prev_visibility = 0
-        # el
-
-        # if prev_level is not None and prev_level > current_level:
-        #     prev_visibility = delta
-        # else:
-        #
-        #     prev_visibility = 1-delta
-        #
-        # self.levels_visibility[current_level] = 1-prev_visibility
-        #
-        # empty_prev_level = prev_level is None or prev_level not in self.levels_visibility
-        # previous_level_visibility = 0 if empty_prev_level else self.levels_visibility[prev_level]
-        #
-        # if self.current_delta != delta:
-        #     print(current_level, prev_level,
-        #            previous_level_visibility)
-        #     self.current_delta = delta
-        # return prev_visibility
-        # came from bottom
-
-        #
-
+        # Remember min level
         if reached_min_zoom:
             self.min_zoom_level = current_level
-        empty_prev_level = prev_level is None or prev_level not in self.levels_visibility
-        previous_level_visibility = 0 if empty_prev_level else round(self.levels_visibility[prev_level])
+
+        # The delta goes from 1 to 0 when zooming between levels
+        # By default, overlap current level with the previous level and fade out with zoom
+        # The previous level can be larger or smaller based on zoom direction
+        def default_fun():
+            if prev_level is not None and prev_level > current_level:
+                prev_mix = delta
+            else:
+                prev_mix = 1 - delta
+            current_mix = 1 - prev_mix
+            return prev_mix, current_mix
+
+        # Default setup works well until user changes zoom direction
+        # We need to track the level visibility to check if previous level was visible
+        # If previous level was not visible, show only the current level
+        previous_level_visibility = 0 if prev_level not in self.levels_visibility else round(
+            self.levels_visibility[prev_level])
+
+        # If previous level is min level, make sure its always visible
         if prev_level == self.min_zoom_level:
             previous_level_visibility = 1
 
+        # When user dragged the screen, the previous quad doesn't overlap with the current level.
+        # Set values to ensure correct result after drag
         if dragged:
-            current_level_visibility = 1
+            self.levels_visibility[prev_level] = 0
+            self.levels_visibility[current_level] = 1
+            prev_visibility = 0
+            current_visibility = 1
+
+        # If previous level wasn't visible, show only current level
         elif previous_level_visibility == 0:
-            current_level_visibility = 1
-        elif current_level < prev_level:
-            current_level_visibility = 1 - delta
+            prev_visibility = 0
+            current_visibility = 1
         else:
-            current_level_visibility = delta
+            prev_visibility, current_visibility = default_fun()
 
-        self.levels_visibility[current_level] = current_level_visibility
+        self.levels_visibility[current_level] = current_visibility
 
-        if self.current_delta != delta:
-            print(current_level, prev_level,
-                  "current mix:", current_level_visibility,
-                  "prev last:", previous_level_visibility, dragged)
-            self.current_delta = delta
+        # if self.current_delta != delta:
+        #     print(current_level, prev_level,
+        #           "current vis:", current_visibility,
+        #           "prev vis:", prev_visibility,
+        #           "drag", dragged)
+        #     self.current_delta = delta
 
-        if previous_level_visibility == 0:
-            return 0
-        else:
-            return 1 - current_level_visibility
+        return prev_visibility

@@ -10,7 +10,7 @@ from app.gl.n_net import NNet
 from app.gl.n_scene_v2 import NSceneV2
 from app.gl.n_viewport import NViewport
 from app.gl.n_window import NWindow
-from app.gui.download_manager import DownloadManager
+from app.config.download_manager import DownloadManager
 from app.gui.gui_pants import GuiPants
 from app.utils import FancyUtilsClass
 
@@ -32,17 +32,25 @@ class OpenGLApplication:
         self.color_theme = NColorTheme()
         self.utils = FancyUtilsClass()
         self.download_manager = DownloadManager()
-
         self.n_net = NNet(self.n_window, self.color_theme)
-        self.n_viewport = NViewport(self.n_net, self.viewport_width, self.viewport_height)
-        self.n_scene = NSceneV2(self.n_net, self.n_viewport, self.n_window, self.buffer_width, self.buffer_height)
-
         self.camera_animation = CameraAnimation(self.n_window, self.n_net)
 
-        self.gui = GuiPants(self.n_net, self.n_window, self.color_theme, self.utils, self.config, self,
-                            self.download_manager, self.camera_animation)
+        self.n_viewport = NViewport(self.n_net, self.viewport_width, self.viewport_height)
 
+        self.n_scene = NSceneV2(self.n_net,
+                                self.n_viewport,
+                                self.n_window,
+                                self.buffer_width,
+                                self.buffer_height)
 
+        self.gui = GuiPants(self.n_net,
+                            self.n_window,
+                            self.color_theme,
+                            self.utils,
+                            self.config,
+                            self,
+                            self.download_manager,
+                            self.camera_animation)
 
     def render(self):
 
@@ -108,7 +116,6 @@ class OpenGLApplication:
         if key == glfw.KEY_A:
             self.camera_animation.animate_to_bounds(78012, 15296, 78800, 15696, duration=1)
 
-
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
 
@@ -128,7 +135,11 @@ class OpenGLApplication:
 
             self.n_scene.destroy()
             self.n_scene = None
-            self.n_scene = NSceneV2(self.n_net, self.n_viewport, self.n_window, self.buffer_width, self.buffer_height)
+            self.n_scene = NSceneV2(self.n_net,
+                                    self.n_viewport,
+                                    self.n_window,
+                                    self.buffer_width,
+                                    self.buffer_height)
             self.n_viewport.viewport_w = self.viewport_width
             self.n_viewport.viewport_h = self.viewport_height
 
@@ -156,7 +167,11 @@ class OpenGLApplication:
             self.n_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
         self.n_scene.destroy()
         self.n_scene = None
-        self.n_scene = NSceneV2(self.n_net, self.n_viewport, self.n_window, self.buffer_width, self.buffer_height)
+        self.n_scene = NSceneV2(self.n_net,
+                                self.n_viewport,
+                                self.n_window,
+                                self.buffer_width,
+                                self.buffer_height)
         self.utils.print_memory_usage()
         self.reload_view()
 

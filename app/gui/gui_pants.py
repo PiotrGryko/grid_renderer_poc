@@ -31,6 +31,8 @@ class GuiPants:
         imgui.create_context()
         self.impl = GlfwRenderer(self.n_window.window, attach_callbacks=False)
 
+
+
     def set_callbacks(self):
         glfw.set_framebuffer_size_callback(self.n_window.window, self.n_window.frame_buffer_size_callback)
         glfw.set_cursor_pos_callback(self.n_window.window, self.n_window.mouse_position_callback)
