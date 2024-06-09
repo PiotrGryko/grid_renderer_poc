@@ -177,3 +177,6 @@ class NNet:
 
         print("Get grid chunks", (time.time() - start_time) * 1000, "ms", "factor:", factor, "count", len(chunks))
         return chunks, dimensions
+
+    def get_point_data(self, x, y):
+        return self.grid.get_point_data(x, y)

@@ -11,6 +11,7 @@ from app.gl.n_scene_v2 import NSceneV2
 from app.gl.n_viewport import NViewport
 from app.gl.n_window import NWindow
 from app.config.download_manager import DownloadManager
+from app.gui.gui_config import GuiConfig
 from app.gui.gui_pants import GuiPants
 from app.utils import FancyUtilsClass
 
@@ -43,14 +44,20 @@ class OpenGLApplication:
                                 self.buffer_width,
                                 self.buffer_height)
 
-        self.gui = GuiPants(self.n_net,
-                            self.n_window,
-                            self.color_theme,
-                            self.utils,
-                            self.config,
-                            self,
-                            self.download_manager,
-                            self.camera_animation)
+        self.gui_config = GuiConfig(
+            self.n_net,
+            self.n_window,
+            self.color_theme,
+            self.utils,
+            self.config,
+            self,
+            self.download_manager,
+            self.camera_animation)
+
+        self.gui = GuiPants(self.gui_config)
+
+        self.mouse_x_world = None
+        self.mouse_y_world = None
 
     def render(self):
 
@@ -59,28 +66,29 @@ class OpenGLApplication:
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
         gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
-        mouse_x_ndc, mouse_y_ndc = self.n_window.window_to_world_cords(
+        self.mouse_x_world, self.mouse_y_world = self.n_window.window_to_world_cords(
             self.n_window.last_mouse_x,
             self.n_window.last_mouse_y
         )
+        self.on_mouse_position_changed()
         self.n_window.n_color_map_v2_texture_shader.use()
         self.n_window.n_color_map_v2_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        self.n_window.n_color_map_v2_texture_shader.update_mouse_position(mouse_x_ndc,
-                                                                          mouse_y_ndc)
+        self.n_window.n_color_map_v2_texture_shader.update_mouse_position(self.mouse_x_world,
+                                                                          self.mouse_y_world)
         self.n_window.n_color_map_v2_texture_shader.update_color_map(self.color_theme.name,
                                                                      self.color_theme.color_array)
 
         self.n_window.n_color_billboards_texture_shader.use()
         self.n_window.n_color_billboards_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        self.n_window.n_color_billboards_texture_shader.update_mouse_position(mouse_x_ndc,
-                                                                              mouse_y_ndc)
+        self.n_window.n_color_billboards_texture_shader.update_mouse_position(self.mouse_x_world,
+                                                                              self.mouse_y_world)
         self.n_window.n_color_billboards_texture_shader.update_color_map(self.color_theme.name,
                                                                          self.color_theme.color_array)
 
         self.n_window.n_instances_from_texture_shader.use()
         self.n_window.n_instances_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        self.n_window.n_instances_from_texture_shader.update_mouse_position(mouse_x_ndc,
-                                                                            mouse_y_ndc)
+        self.n_window.n_instances_from_texture_shader.update_mouse_position(self.mouse_x_world,
+                                                                            self.mouse_y_world)
         self.n_window.n_instances_from_texture_shader.update_cell_billboard()
         self.n_window.n_instances_from_texture_shader.update_color_map(self.color_theme.name,
                                                                        self.color_theme.color_array)
@@ -88,8 +96,8 @@ class OpenGLApplication:
         self.n_window.n_billboards_from_texture_shader.use()
         self.n_window.n_billboards_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
         self.n_window.n_billboards_from_texture_shader.update_cell_billboard()
-        self.n_window.n_billboards_from_texture_shader.update_mouse_position(mouse_x_ndc,
-                                                                             mouse_y_ndc)
+        self.n_window.n_billboards_from_texture_shader.update_mouse_position(self.mouse_x_world,
+                                                                             self.mouse_y_world)
         self.n_window.n_billboards_from_texture_shader.update_color_map(self.color_theme.name,
                                                                         self.color_theme.color_array)
 
@@ -105,6 +113,24 @@ class OpenGLApplication:
         glfw.swap_buffers(self.n_window.window)
         self.utils.print_memory_usage()
 
+    def on_mouse_clicked(self):
+        x = int(self.mouse_x_world)
+        y = int(self.mouse_y_world)
+        value, layer_meta = self.n_net.get_point_data(x, y)
+        if value is not None and layer_meta is not None and value != -1:
+            self.gui.show_popup(value, layer_meta, (x + 0.5, y + 0.5))
+        else:
+            self.gui.hide_popup()
+
+    def on_mouse_position_changed(self):
+        x = int(self.mouse_x_world)
+        y = int(self.mouse_y_world)
+        value, layer_meta = self.n_net.get_point_data(x, y)
+        if value is not None and layer_meta is not None and value != -1:
+            self.gui_config.publish_layer_position_message(self.mouse_x_world, self.mouse_y_world, layer_meta)
+        else:
+            self.gui_config.publish_position_message(self.mouse_x_world, self.mouse_y_world)
+
     def on_key_pressed(self, key):
         print("key pressed", key)
         if key == glfw.KEY_UP:
@@ -113,8 +139,7 @@ class OpenGLApplication:
             self.n_window.mouse_scroll_callback(None, None, 0.1)
         if key == glfw.KEY_C:
             self.color_theme.next()
-        if key == glfw.KEY_A:
-            self.camera_animation.animate_to_bounds(78012, 15296, 78800, 15696, duration=1)
+            self.config.color_name = self.color_theme.name
 
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
@@ -159,12 +184,24 @@ class OpenGLApplication:
         elif model_directory is not None:
             model = AutoModelForCausalLM.from_pretrained(model_directory, local_files_only=True)
             self.n_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
+            self.config.model_directory = model_directory
+            self.config.save_config()
+        elif self.config.model_directory is not None:
+            model = AutoModelForCausalLM.from_pretrained(self.config.model_directory, local_files_only=True)
+            self.n_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
         else:
             print("No model to load!", "Showing welcome message")
             # welcome_message = self.utils.create_welcome_message()
             welcome_message = self.utils.create_logo_message()
 
             self.n_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
+
+        if model is not None:
+            self.config.model_name = model.name_or_path
+        else:
+            self.config.model_name = None
+        self.config.save_config()
+
         self.n_scene.destroy()
         self.n_scene = None
         self.n_scene = NSceneV2(self.n_net,
@@ -197,6 +234,7 @@ class OpenGLApplication:
         self.n_window.set_render_func(self.render)
         self.n_window.set_key_repeat_func(self.on_key_pressed)
         self.n_window.set_key_pressed_func(self.on_key_pressed)
+        self.n_window.set_on_click_func(self.on_mouse_clicked)
         self.n_window.set_viewport_updated_func(self.on_viewport_updated)
         glEnable(GL_DEPTH_TEST)
         glDepthMask(GL_FALSE)

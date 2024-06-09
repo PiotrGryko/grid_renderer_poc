@@ -13,6 +13,7 @@ class NWindow:
     def __init__(self):
         self.window = None
         self.dragging = False
+        self.mouse_press_pos = None
         self.width = 1280
         self.height = 1280
         self.last_mouse_x = 0.0
@@ -24,6 +25,7 @@ class NWindow:
         self.aspect_ratio = self.width / self.height
         self.projection = Projection()
         self.render_func = None
+        self.on_click_func = None
         self.viewport_updated_func = None
         self.key_pressed_func = None
         self.key_repeat_func = None
@@ -88,6 +90,7 @@ class NWindow:
         while not glfw.window_should_close(self.window):
             if glfw.get_key(self.window, glfw.KEY_ESCAPE) == glfw.PRESS:
                 glfw.set_window_should_close(self.window, True)
+
             if self.render_func:
                 self.render_func()
             glfw.poll_events()
@@ -100,6 +103,9 @@ class NWindow:
 
     def set_render_func(self, render_func):
         self.render_func = render_func
+
+    def set_on_click_func(self, on_click_func):
+        self.on_click_func = on_click_func
 
     def set_key_pressed_func(self, key_pressed_func):
         self.key_pressed_func = key_pressed_func
@@ -188,7 +194,7 @@ class NWindow:
             y1,
             x2,
             y2)
-        (wx1, wy1, wx2, wy2) = self.ndc_to_window_cords(sx1, sy1, sx2, sy2)
+        (wx1, wy1, wx2, wy2) = self.ndc_to_window_cords(sx1, -sy1, sx2, -sy2)
         return (wx1, wy1, wx2, wy2)
 
     def on_viewport_updated(self):
@@ -256,8 +262,13 @@ class NWindow:
                 pass
         if button == glfw.MOUSE_BUTTON_LEFT:
             if action == glfw.PRESS:
+                self.mouse_press_pos = glfw.get_cursor_pos(window)
                 self.dragging = True
             elif action == glfw.RELEASE:
+                mouse_release_pos = glfw.get_cursor_pos(window)
+                if self.mouse_press_pos and self._is_click(self.mouse_press_pos, mouse_release_pos):
+                    if self.on_click_func is not None:
+                        self.on_click_func()
                 self.dragging = False
 
     def mouse_position_callback(self, window, xpos, ypos):
@@ -299,3 +310,11 @@ class NWindow:
         print(dx, dy)
         self.projection.translate_to(-(1 - dx), -(1 - dy))
         self.on_viewport_updated()
+
+    def cancel_drag(self):
+        self.dragging = False
+
+    def _is_click(self, press_pos, release_pos, threshold=5.0):
+        dx = release_pos[0] - press_pos[0]
+        dy = release_pos[1] - press_pos[1]
+        return (dx * dx + dy * dy) <= (threshold * threshold)

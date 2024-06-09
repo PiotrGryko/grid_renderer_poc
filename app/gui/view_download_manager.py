@@ -7,10 +7,13 @@ import imgui
 from huggingface_hub import HfApi, ModelFilter
 
 from app.gui.file_dialog import FileDialog
+from app.gui.widget import Widget
 
 
-class ModelSettingsPage:
-    def __init__(self, download_manager, config):
+class DownloadManagerPage(Widget):
+    def __init__(self, config):
+        super().__init__("Download Manager")
+        self.config = config
         self.api = HfApi()
         self.models = []
         self.selected_model = None
@@ -18,8 +21,14 @@ class ModelSettingsPage:
         self.loading = False  # Flag to indicate loading state
         self.load_thread = None
         self.loaded = False
-        self.file_dialog = FileDialog(config)
-        self.download_manager = download_manager
+        self.file_dialog = FileDialog(config.app_config)
+        self.download_manager = config.download_manager
+
+    def _on_visibility_changed(self):
+        self.config.show_model_settings = self.opened
+
+    def _update_visibility(self):
+        self.opened = self.config.show_model_settings
 
     def start_loading_models(self):
 
@@ -55,15 +64,18 @@ class ModelSettingsPage:
             color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 1.0 * (i / num_segments))
             draw_list.add_circle_filled(x, y, thickness, color)
 
-    def render(self):
+    def _content(self):
 
-        window_expanded, window_opened = imgui.begin("Downloads manager", flags=imgui.WINDOW_NO_RESIZE, closable=True)
         if not self.loaded and not self.loading:
             self.start_loading_models()
 
-        # Left column: Search bar and model list
-        imgui.begin_child("left_column", width=300, height=400, border=True)
+        window_width, window_height = imgui.get_content_region_available()
+        left_column_width = window_width * 0.5
+        right_column_width = window_width * 0.5  - 20
+        column_height = window_height
 
+        # Left column: Search bar and model list
+        imgui.begin_child("left_column", width=left_column_width, height=column_height, border=False)
         changed, new_query = imgui.input_text("Search", self.search_text, 256)
         if changed:
             self.search_text = new_query
@@ -75,10 +87,10 @@ class ModelSettingsPage:
             self.render_spinner((spinner_pos[0] + 10, spinner_pos[1] + 10), radius=8, thickness=2)
             imgui.new_line()
 
-        if imgui.begin_list_box("##models_list", width=280, height=350):
+        if imgui.begin_list_box("##models_list", width=left_column_width-20, height=column_height):
             for model in self.models:
                 is_selected = (model == self.selected_model)
-                opened, clicked = imgui.selectable(model.modelId, width=250, selected=is_selected)
+                opened, clicked = imgui.selectable(model.modelId, width=left_column_width-50, selected=is_selected)
                 if clicked and not is_selected:
                     print("model clicked")
                     self.selected_model = model
@@ -89,7 +101,7 @@ class ModelSettingsPage:
         imgui.same_line()
 
         # Right column: Model settings
-        imgui.begin_child("right_column", width=400, height=400, border=True)
+        imgui.begin_child("right_column", width=right_column_width, height=column_height, border=False)
 
         if self.selected_model:
             model_info = self.selected_model
@@ -140,6 +152,3 @@ class ModelSettingsPage:
                 self.download_manager.download_model(self.selected_model.modelId, updated_path)
 
         imgui.end_child()
-
-        imgui.end()
-        return window_opened

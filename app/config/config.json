@@ -1,8 +1,10 @@
 {
-    "color_name": "PuOr",
-    "buffer_width": 2500,
-    "buffer_height": 2500,
+    "color_name": "Spectral",
+    "buffer_width": 1500,
+    "buffer_height": 1500,
     "enable_blend": true,
     "power_of_two": true,
-    "last_directory": "/Users/piotrgryko/PycharmProjects/Models/google-bert_bert-base-cased"
+    "last_directory": "/Users/piotrgryko/PycharmProjects/Models/openai_whisper-tiny",
+    "model_name": "/Users/piotrgryko/PycharmProjects/Models/openai_whisper-tiny",
+    "model_directory": "/Users/piotrgryko/PycharmProjects/Models/openai_whisper-tiny"
 }

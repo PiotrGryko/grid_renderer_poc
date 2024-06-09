@@ -4,12 +4,14 @@ import os
 
 class LittleConfig:
     def __init__(self):
+        self.model_name = None
         self.color_name = None
         self.buffer_width = None
         self.buffer_height = None
         self.enable_blend = None
         self.power_of_two = None
         self.last_directory = None
+        self.model_directory = None
         self.filename = "config.json"
 
     def load_config(self):
@@ -25,7 +27,9 @@ class LittleConfig:
                 self.buffer_height = config_data.get('buffer_height')
                 self.enable_blend = config_data.get('enable_blend')
                 self.power_of_two = config_data.get('power_of_two')
+                self.model_name = config_data.get('model_name')
                 self.last_directory = config_data.get('last_directory')
+                self.model_directory = config_data.get('model_directory')
         except FileNotFoundError:
             print(f"Error: {file_path} not found.")
         except json.JSONDecodeError:
@@ -38,7 +42,9 @@ class LittleConfig:
             'buffer_height': self.buffer_height,
             'enable_blend': self.enable_blend,
             'power_of_two': self.power_of_two,
-            'last_directory': self.last_directory
+            'last_directory': self.last_directory,
+            'model_name': self.model_name,
+            'model_directory': self.model_directory
         }
         script_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(script_dir, self.filename)

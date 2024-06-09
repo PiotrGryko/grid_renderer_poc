@@ -42,6 +42,21 @@ class CameraAnimation:
         self.start_time = time.time()
         self.is_animating = True
 
+    def animate_to_node(self, x, y, duration=2.0):
+        # Calculate the target width and height in world coordinates
+
+        self.left = x
+        self.bottom = y
+
+        self.duration = duration
+        self.start_zoom = self.n_window.zoom_factor
+        self.target_x, self.target_y = self.get_target_for_current_projection()
+        self.target_zoom = 0.2
+
+        print("target", self.target_x, self.target_y, self.target_zoom)
+        self.start_time = time.time()
+        self.is_animating = True
+
     def update_animation(self):
         if not self.is_animating:
             return
