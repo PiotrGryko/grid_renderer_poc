@@ -9,7 +9,7 @@ from transformers import (
     AutoModelForSpeechSeq2Seq, AutoModelForAudioClassification, AutoModelForMultipleChoice,
     AutoModelForNextSentencePrediction,
     AutoModelForVideoClassification, AutoModelForDocumentQuestionAnswering, AutoModelForTableQuestionAnswering,
-    BlipForConditionalGeneration, Speech2TextForConditionalGeneration, VisionEncoderDecoderModel
+    BlipForConditionalGeneration, Speech2TextForConditionalGeneration, VisionEncoderDecoderModel, AutoTokenizer
 )
 
 
@@ -64,7 +64,9 @@ class DownloadManager:
         try:
             model_class = self.get_model_class(model_id)
             model = model_class.from_pretrained(model_id, local_files_only=False)
+            tokenizer = AutoTokenizer.from_pretrained(model_id, local_files_only=False)
             model.save_pretrained(path)
+            tokenizer.save_pretrained(path)
             self.download_status[model_id] = "Completed"
         except Exception as e:
             self.download_status[model_id] = f"Error: {str(e)}"

@@ -2,6 +2,8 @@ import math
 
 
 def unpack_shape(array):
+    if type(array) is list:
+        return len(array), 1
     shape = array.shape
     if len(shape) == 1:
         return shape[0], 1  # or (shape[0], 1) if you prefer to treat it as a single column with many rows

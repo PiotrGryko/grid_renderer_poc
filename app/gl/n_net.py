@@ -9,10 +9,70 @@ import numpy as np
 from app.grid.n_grid import create_grid, create_layer
 
 
+class NetWrapper:
+    def __init__(self, n_window, color_theme):
+        self.weights_net = NNet(n_window, color_theme)
+        self.neurons_net = NNet(n_window, color_theme)
+
+        self.show_weights = True
+
+    def set_weights_net_active(self):
+        self.show_weights = True
+
+    def set_neurons_net_active(self):
+        self.show_weights = False
+
+    @property
+    def total_width(self):
+        if self.show_weights:
+            return self.weights_net.total_width
+        else:
+            return self.neurons_net.total_width
+
+    @property
+    def total_height(self):
+        if self.show_weights:
+            return self.weights_net.total_height
+        else:
+            return self.neurons_net.total_height
+
+    @property
+    def layers_tree(self):
+        if self.show_weights:
+            return self.weights_net.layers_tree
+        else:
+            return self.neurons_net.layers_tree
+    @property
+    def layers(self):
+        if self.show_weights:
+            return self.weights_net.layers
+        else:
+            return self.neurons_net.layers
+
+    def update_visible_layers(self, bounds):
+        if self.show_weights:
+            self.weights_net.update_visible_layers(bounds)
+        else:
+            self.neurons_net.update_visible_layers(bounds)
+
+    def get_subgrid_chunks_grid_dimensions(self, col_min, row_min, col_max, row_max, factor):
+        if self.show_weights:
+            return self.weights_net.get_subgrid_chunks_grid_dimensions(col_min, row_min, col_max, row_max, factor)
+        else:
+            return self.neurons_net.get_subgrid_chunks_grid_dimensions(col_min, row_min, col_max, row_max, factor)
+
+    def get_point_data(self, x, y):
+        if self.show_weights:
+            return self.weights_net.get_point_data(x, y)
+        else:
+            return self.neurons_net.get_point_data(x, y)
+
+
 class NNet:
     def __init__(self, n_window, color_theme):
         self.n_window = n_window
         self.color_theme = color_theme
+        self.layers_tree = None
         self.layers = []
         self.layers_names = []
         self.grid_columns_count = 0
@@ -22,6 +82,28 @@ class NNet:
         self.total_size = 0
         self.grid = create_grid()
         self.visible_layers = []
+
+    def init_from_model_parser(self, model_parser):
+        print("Init net from activations parser")
+        layers = []
+        names = []
+        components = []
+        def parse_component(component, start=True):
+            if component.shape is not None:
+                s = component.shape
+                layer_grid = np.random.uniform(0, 1, (s[0], s[1])).astype(np.float32)
+                names.append(component.name)
+                print("component ",component)
+                layers.append(layer_grid)
+                components.append(component)
+
+            for c in component.components:
+                parse_component(c, False)
+
+        parse_component(model_parser.parsed_model)
+        self.create_layers(layers, names)
+        self.init_grid()
+        self.layers_tree = model_parser.parsed_model
 
     def init_from_size(self, all_layers_sizes):
         print("Init net from sizes")
@@ -157,6 +239,8 @@ class NNet:
         print("Net initialized", time.time() - start_time, "s",
               "total size: ", self.total_size
               )
+
+
 
     def update_visible_layers(self, bounds):
         col_min = bounds.x1

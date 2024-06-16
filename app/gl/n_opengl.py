@@ -1,12 +1,16 @@
+import os.path
+
 import OpenGL.GL as gl
 import glfw
 from OpenGL.GL import *
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from app.ai.model_parser import ModelParser
 from app.config.app_config import LittleConfig
 from app.gl.c_color_theme import NColorTheme
 from app.gl.n_camera import CameraAnimation
-from app.gl.n_net import NNet
+from app.gl.n_effects import NEffects
+from app.gl.n_net import NNet, NetWrapper
 from app.gl.n_scene_v2 import NSceneV2
 from app.gl.n_viewport import NViewport
 from app.gl.n_window import NWindow
@@ -33,7 +37,8 @@ class OpenGLApplication:
         self.color_theme = NColorTheme()
         self.utils = FancyUtilsClass()
         self.download_manager = DownloadManager()
-        self.n_net = NNet(self.n_window, self.color_theme)
+        self.n_net = NetWrapper(self.n_window, self.color_theme)
+
         self.camera_animation = CameraAnimation(self.n_window, self.n_net)
 
         self.n_viewport = NViewport(self.n_net, self.viewport_width, self.viewport_height)
@@ -43,6 +48,7 @@ class OpenGLApplication:
                                 self.n_window,
                                 self.buffer_width,
                                 self.buffer_height)
+        self.n_effects = NEffects(self.n_net, self.n_window)
 
         self.gui_config = GuiConfig(
             self.n_net,
@@ -52,7 +58,8 @@ class OpenGLApplication:
             self.config,
             self,
             self.download_manager,
-            self.camera_animation)
+            self.camera_animation,
+            self.n_effects)
 
         self.gui = GuiPants(self.gui_config)
 
@@ -66,32 +73,20 @@ class OpenGLApplication:
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
         gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
-        self.mouse_x_world, self.mouse_y_world = self.n_window.window_to_world_cords(
+        mouse_x_world, mouse_y_world = self.n_window.window_to_world_cords(
             self.n_window.last_mouse_x,
             self.n_window.last_mouse_y
         )
-        self.on_mouse_position_changed()
+        if self.mouse_x_world != mouse_x_world or self.mouse_y_world != mouse_y_world:
+            self.mouse_x_world = mouse_x_world
+            self.mouse_y_world = mouse_y_world
+            self.on_mouse_position_changed()
         self.n_window.n_color_map_v2_texture_shader.use()
         self.n_window.n_color_map_v2_texture_shader.update_projection(self.n_window.get_projection_matrix())
         self.n_window.n_color_map_v2_texture_shader.update_mouse_position(self.mouse_x_world,
                                                                           self.mouse_y_world)
         self.n_window.n_color_map_v2_texture_shader.update_color_map(self.color_theme.name,
                                                                      self.color_theme.color_array)
-
-        self.n_window.n_color_billboards_texture_shader.use()
-        self.n_window.n_color_billboards_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        self.n_window.n_color_billboards_texture_shader.update_mouse_position(self.mouse_x_world,
-                                                                              self.mouse_y_world)
-        self.n_window.n_color_billboards_texture_shader.update_color_map(self.color_theme.name,
-                                                                         self.color_theme.color_array)
-
-        self.n_window.n_instances_from_texture_shader.use()
-        self.n_window.n_instances_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
-        self.n_window.n_instances_from_texture_shader.update_mouse_position(self.mouse_x_world,
-                                                                            self.mouse_y_world)
-        self.n_window.n_instances_from_texture_shader.update_cell_billboard()
-        self.n_window.n_instances_from_texture_shader.update_color_map(self.color_theme.name,
-                                                                       self.color_theme.color_array)
 
         self.n_window.n_billboards_from_texture_shader.use()
         self.n_window.n_billboards_from_texture_shader.update_projection(self.n_window.get_projection_matrix())
@@ -101,12 +96,14 @@ class OpenGLApplication:
         self.n_window.n_billboards_from_texture_shader.update_color_map(self.color_theme.name,
                                                                         self.color_theme.color_array)
 
+        self.n_window.n_effects_shader.use()
+        self.n_window.n_effects_shader.update_projection(self.n_window.get_projection_matrix())
+
         self.n_scene.draw_scene(
             self.n_window.n_color_map_v2_texture_shader,
-            self.n_window.n_instances_from_texture_shader,
-            self.n_window.n_billboards_from_texture_shader,
-            self.n_window.n_color_billboards_texture_shader
+            self.n_window.n_billboards_from_texture_shader
         )
+        self.n_effects.draw(self.n_window.n_effects_shader)
         self.gui.render_fancy_pants()
         self.camera_animation.update_animation()
 
@@ -123,6 +120,8 @@ class OpenGLApplication:
             self.gui.hide_popup()
 
     def on_mouse_position_changed(self):
+        if self.gui.wants_mouse():
+            return
         x = int(self.mouse_x_world)
         y = int(self.mouse_y_world)
         value, layer_meta = self.n_net.get_point_data(x, y)
@@ -143,8 +142,8 @@ class OpenGLApplication:
 
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
-
         self.n_viewport.update_viewport(viewport)
+        self.n_effects.on_viewport_changed(viewport)
         if self.n_viewport.visible_data is not None:
             self.n_net.update_visible_layers(self.n_viewport.visible_data)
 
@@ -178,25 +177,38 @@ class OpenGLApplication:
                    load_mem_file=False):
 
         if load_mem_file:
-            self.n_net.init_from_last_memory_files()
+            self.n_net.weights_net.init_from_last_memory_files()
         elif model is not None:
-            self.n_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
-        elif model_directory is not None:
+            self.n_net.weights_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
+        elif model_directory is not None and os.path.exists(model_directory):
+
             model = AutoModelForCausalLM.from_pretrained(model_directory, local_files_only=True)
-            self.n_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
+            self.n_net.weights_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
             self.config.model_directory = model_directory
             self.config.save_config()
-        elif self.config.model_directory is not None:
+        elif self.config.model_directory is not None and os.path.exists(self.config.model_directory):
             model = AutoModelForCausalLM.from_pretrained(self.config.model_directory, local_files_only=True)
-            self.n_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
-        else:
+            self.n_net.weights_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
+        if model is None:
             print("No model to load!", "Showing welcome message")
             # welcome_message = self.utils.create_welcome_message()
             welcome_message = self.utils.create_logo_message()
-
-            self.n_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
+            self.n_net.weights_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
 
         if model is not None:
+            index = 0
+            tokenizer = AutoTokenizer.from_pretrained(model.name_or_path, local_files_only=True)
+            parser = ModelParser(model, tokenizer)
+            r = parser.model_to_json()
+            print(r)
+            # parser.extract_layers_info()
+            # parser.register_hooks()
+            # parser.perform_forward_pass("Is everything good? ")
+            self.n_net.neurons_net.init_from_model_parser(parser)
+            # ModelParser().extract_layers_info(model.named_parameters())
+            # for name, t in model.named_parameters():
+            #     print(index, "name", name, "shape", t.shape)
+            #     index += 1
             self.config.model_name = model.name_or_path
         else:
             self.config.model_name = None
@@ -246,19 +258,19 @@ class OpenGLApplication:
         print(f"OpenGL version: {version.decode('utf-8')}")
 
         self.n_window.n_color_map_v2_texture_shader.compile_color_map_v2_texture_program()
-        self.n_window.n_instances_from_texture_shader.compile_instances_v2_program()
         self.n_window.n_billboards_from_texture_shader.compile_billboards_v2_program()
-        self.n_window.n_color_billboards_texture_shader.compile_billboards_v3_program()
+        self.n_window.n_effects_shader.compile_effects_program()
 
         self.utils.print_memory_usage()
 
         self.load_model(model, model_directory, save_mem_file, load_mem_file)
+        # self.n_effects.init()
         print("Main loop")
         self.n_window.start_main_loop()
         glfw.terminate()
 
         gl.glDeleteProgram(self.n_window.n_color_map_v2_texture_shader.shader_program)
-        gl.glDeleteProgram(self.n_window.n_instances_from_texture_shader.shader_program)
         gl.glDeleteProgram(self.n_window.n_billboards_from_texture_shader.shader_program)
-        gl.glDeleteProgram(self.n_window.n_color_billboards_texture_shader.shader_program)
+        gl.glDeleteProgram(self.n_window.n_effects_shader.shader_program)
+
         self.gui.remove_gui()

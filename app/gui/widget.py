@@ -150,8 +150,13 @@ class Widget:
 
                 self._content()
                 imgui.end_child()
+            if self.view_type == ViewType.FLOATING:
+                w, h = imgui.get_window_size()
+                self.window_width = int(w)
+                self.window_height = int(h)
             imgui.end()
             imgui.pop_style_var(1)  # This should match the number of push_style_var calls
+
 
     def _framebuffer_size_callback(self, window, width, height):
         self.window_width = width

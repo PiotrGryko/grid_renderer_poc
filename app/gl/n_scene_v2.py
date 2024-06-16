@@ -6,199 +6,7 @@ import OpenGL.GL as gl
 import numpy as np
 
 from app.gl.n_blend_calculator import NBlendCalculator
-
-
-class Quad:
-    def __init__(self):
-        self.vao = None
-        self.ebo = None
-        self.vbo = None
-        self.indices = None
-        self.tex_vbo = None
-        self.tex_coords = None
-
-        self.prev_tex_vbo = None
-        self.prev_tex_coords = None
-
-        self.vertices = None
-        self.created = False
-
-    def create_quad(self):
-        self.vertices = np.array([
-            0, 0,  # Bottom-left
-            1, 0,  # Bottom-right
-            1, 1,  # Top-right
-            0, 1  # Top-left
-        ], dtype=np.float32)
-
-        self.tex_coords = np.array([
-            0.0, 0.0,  # Bottom-left
-            1.0, 0.0,  # Bottom-right
-            1.0, 1.0,  # Top-right
-            0.0, 1.0  # Top-left
-        ], dtype=np.float32)
-
-        self.prev_tex_coords = np.array([
-            0.0, 0.0,  # Bottom-left
-            1.0, 0.0,  # Bottom-right
-            1.0, 1.0,  # Top-right
-            0.0, 1.0  # Top-left
-        ], dtype=np.float32)
-
-        # Define the indices to form two triangles
-        self.indices = np.array([
-            0, 1, 2,
-            2, 3, 0
-        ], dtype=np.uint32)
-
-        self.vbo = gl.glGenBuffers(1)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, self.vertices.nbytes, self.vertices, gl.GL_DYNAMIC_DRAW)
-
-        #
-        self.tex_vbo = gl.glGenBuffers(1)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.tex_vbo)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, self.tex_coords.nbytes, self.tex_coords, gl.GL_STATIC_DRAW)
-
-        self.prev_tex_vbo = gl.glGenBuffers(1)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.prev_tex_vbo)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, self.prev_tex_coords.nbytes, self.prev_tex_coords, gl.GL_STATIC_DRAW)
-
-        # Create and bind the vertex array object (VAO)
-        self.vao = gl.glGenVertexArrays(1)
-        gl.glBindVertexArray(self.vao)
-
-        # Bind the vertex buffer object (VBO) for vertices
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-        gl.glEnableVertexAttribArray(0)
-        gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, 0, None)
-
-        # # Bind the texture
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.tex_vbo)
-        gl.glEnableVertexAttribArray(1)
-        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, 0, None)
-
-        # # Bind the texture
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.prev_tex_vbo)
-        gl.glEnableVertexAttribArray(2)
-        gl.glVertexAttribPointer(2, 2, gl.GL_FLOAT, gl.GL_FALSE, 0, None)
-
-        # Create and bind the element buffer object (EBO)
-        self.ebo = gl.glGenBuffers(1)
-        gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.ebo)
-        gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, self.indices.nbytes, self.indices, gl.GL_STATIC_DRAW)
-        self.created = True
-
-    def destroy(self):
-        if self.created:
-            gl.glDeleteBuffers(1, [self.vbo])
-            gl.glDeleteBuffers(1, [self.tex_vbo])
-            gl.glDeleteBuffers(1, [self.prev_tex_vbo])
-            gl.glDeleteBuffers(1, [self.ebo])
-            gl.glDeleteVertexArrays(1, [self.vao])
-            self.created = False
-
-    # def update_quad_position(self, x1, y1, x2, y2, offset_x, offset_y, factor):
-    #     if not self.created:
-    #         return
-    #     # The quad x1,y1,x2,y2 is always 0,0,width,height
-    #     # The position of the quad in the world is offset + size * factor
-    #
-    #     x1 = offset_x + x1 * factor
-    #     x2 = offset_x + x2 * factor
-    #     y1 = offset_y + y1 * factor
-    #     y2 = offset_y + y2 * factor
-    #     self.vertices = np.array([
-    #         x1, y1,  # Bottom-left
-    #         x2, y1,  # Bottom-right
-    #         x2, y2,  # Top-right
-    #         x1, y2,  # Top-left
-    #     ], dtype=np.float32)
-    #     # Bind the VBO
-    #     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-    #
-    #     # Update the buffer data
-    #     gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self.vertices.nbytes, self.vertices)
-
-    def update_quad_position_old(self, x1, y1, x2, y2):
-        if not self.created:
-            return
-        self.vertices = np.array([
-            x1, y1,  # Bottom-left
-            x2, y1,  # Bottom-right
-            x2, y2,  # Top-right
-            x1, y2,  # Top-left
-        ], dtype=np.float32)
-        # Bind the VBO
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo)
-        # Update the buffer data
-        gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self.vertices.nbytes, self.vertices)
-
-    def update_second_texture_coordinates(self, tex_width, tex_height, current_quad, prev_quad, n_window):
-        """
-        Map tex coordinates from one quad to another quad
-        Two quads can be different sized and different positions
-        Both quads have [0-1] tex coordinates in their own space
-        This method maps prev_quad on current_quad and calculates
-        prev_quad tex coordinates (prev_tex_coords) in current quad space (tex coordinates [0-1])
-        :param tex_width:
-        :param tex_height:
-        :param current_quad:
-        :param prev_quad:
-        :param n_window:
-        :return:
-        """
-        if not self.created:
-            return
-
-        factor_delta = prev_quad.factor / current_quad.factor
-        w = tex_width
-        h = tex_height
-
-        diff_x1 = (current_quad.fx1 - prev_quad.fx1 * factor_delta) / w / factor_delta
-        diff_y1 = (current_quad.fy1 - prev_quad.fy1 * factor_delta) / h / factor_delta
-
-        x1 = 0
-        x2 = 1 / factor_delta
-        y1 = 0
-        y2 = 1 / factor_delta
-
-        dify = diff_y1
-        difx = diff_x1
-
-        y1 = y1 + dify
-        y2 = y2 + dify
-        x1 = x1 + difx
-        x2 = x2 + difx
-        # print("tex width", w)
-        # print("tex height", h)
-        #
-        # print("prev quad", prev_quad.fx1, prev_quad.fx2, prev_quad.fy1, prev_quad.fy2)
-        # print("current quad", current_quad.fx1, current_quad.fx2, current_quad.fy1, current_quad.fy2)
-        # print("prev factor ", prev_quad.factor, "current factor", current_quad.factor, "delta", factor_delta)
-        # print("height current", current_h, "prev h", prev_h)
-        # print("diff", diff_x1, diff_y1)
-        # print("x1 x2", x1, x2)
-        # print("y1 y2", y1, y2)
-
-        self.prev_tex_coords = np.array([
-            x1, y1,  # Bottom-left
-            x2, y1,  # Bottom-right
-            x2, y2,  # Top-right
-            x1, y2  # Top-left
-        ], dtype=np.float32)
-
-        # Bind the VBO
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.prev_tex_vbo)
-        # Update the buffer data
-        gl.glBufferSubData(gl.GL_ARRAY_BUFFER, 0, self.prev_tex_coords.nbytes, self.prev_tex_coords)
-
-    def draw(self):
-        if not self.created:
-            return
-        gl.glBindVertexArray(self.vao)
-        # gl.glDrawElementsInstanced(gl.GL_TRIANGLES, len(self.indices), gl.GL_UNSIGNED_INT, None, 1)
-        gl.glDrawElements(gl.GL_TRIANGLES, len(self.indices), gl.GL_UNSIGNED_INT, None)
+from app.gl.n_quad import NQuad
 
 
 class EntityV2:
@@ -207,7 +15,7 @@ class EntityV2:
         self.tex_coords = None
         self.indices = None
         self.tex_vbo = None
-        self.node_circle_vbo = None
+
         self.node_quad_vbo = None
         self.vao = None
         self.pbo = None
@@ -225,21 +33,11 @@ class EntityV2:
         self.gl_texture_unit = gl_texture_unit
 
         self.visible_grid_part = None
-        self.quad = Quad()
+        self.quad = NQuad()
 
         # Track the detail level of the second texture (used in blending mode)
         self.second_texture_factor = None
         self.current_texture_factor = None
-
-    def build_node_vertices(self):
-        vertices = []
-        for i in range(self.num_segments):
-            theta = 2.0 * math.pi * float(i) / float(self.num_segments)
-            x = self.radius * math.cos(theta)
-            y = self.radius * math.sin(theta)
-            vertices.extend([x, y])
-        vertices = np.array(vertices, dtype=np.float32)
-        return vertices
 
     def build_quad_vertices(self):
         vertices = np.array([
@@ -278,7 +76,7 @@ class EntityV2:
         if error != gl.GL_NO_ERROR:
             print(f"Error loading texture: {error}")
 
-        vertices = self.build_node_vertices()
+        # vertices = self.build_node_vertices()
         quads = self.build_quad_vertices()
         self.tex_coords = self.build_text_coords()
         # Define the indices to form two triangles
@@ -286,12 +84,6 @@ class EntityV2:
             0, 1, 2,  # Triangle 1
             0, 2, 3  # Triangle 2
         ], dtype=np.uint32)
-
-        # Instance data for multiple triangles
-        self.node_circle_vbo = gl.glGenBuffers(1)
-        # Bind the vertex buffer and upload vertex data
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.node_circle_vbo)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, vertices.nbytes, vertices, gl.GL_DYNAMIC_DRAW)
 
         # Instance data for multiple triangles
         self.node_quad_vbo = gl.glGenBuffers(1)
@@ -308,19 +100,14 @@ class EntityV2:
         gl.glBindVertexArray(self.vao)
 
         # Bind the vertex buffer to the VAO
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.node_circle_vbo)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.node_quad_vbo)
         gl.glEnableVertexAttribArray(0)
         gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, 0, None)
 
-        # Bind the vertex buffer to the VAO
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.node_quad_vbo)
-        gl.glEnableVertexAttribArray(1)
-        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, 0, None)
-
         # # Bind the texture
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.tex_vbo)
-        gl.glEnableVertexAttribArray(2)
-        gl.glVertexAttribPointer(2, 2, gl.GL_FLOAT, gl.GL_FALSE, 0, None)
+        gl.glEnableVertexAttribArray(1)
+        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, 0, None)
 
         # Create and bind the element buffer object (EBO)
         self.ebo = gl.glGenBuffers(1)
@@ -337,7 +124,7 @@ class EntityV2:
     def destroy(self):
         if self.created:
             self.quad.destroy()
-            gl.glDeleteBuffers(1, [self.node_circle_vbo])
+            # gl.glDeleteBuffers(1, [self.node_circle_vbo])
             gl.glDeleteBuffers(1, [self.node_quad_vbo])
             gl.glDeleteBuffers(1, [self.tex_vbo])
             gl.glDeleteBuffers(1, [self.ebo])
@@ -378,7 +165,7 @@ class EntityV2:
             print("Missing grid bounds!")
             return
         x1, y1, x2, y2 = self.visible_grid_part.get_quad_position(buffer_w, buffer_h)
-        self.quad.update_quad_position_old(x1, y1, x2, y2)
+        self.quad.update_quad_position(x1, y1, x2, y2)
 
     def draw_points(self, count):
         if not self.created:
@@ -484,8 +271,7 @@ class NSceneV2:
                         self.current_width,
                         self.current_height,
                         self.entity2.visible_grid_part,
-                        self.entity1.visible_grid_part,
-                        self.n_window
+                        self.entity1.visible_grid_part
                     )
                     self.entity2.second_texture_factor = self.entity1.visible_grid_part.factor
                 self.current_entity = self.entity2
@@ -501,8 +287,7 @@ class NSceneV2:
                         self.current_width,
                         self.current_height,
                         self.entity1.visible_grid_part,
-                        self.entity2.visible_grid_part,
-                        self.n_window
+                        self.entity2.visible_grid_part
                     )
                     self.entity1.second_texture_factor = self.entity2.visible_grid_part.factor
                 self.current_entity = self.entity1
@@ -579,9 +364,7 @@ class NSceneV2:
 
     def draw_scene(self,
                    n_color_map_v2_texture_shader,
-                   n_instances_from_texture_shader,
-                   n_billboards_from_texture_shader,
-                   n_color_billboards_texture_shader
+                   n_billboards_from_texture_shader
                    ):
 
         if not self.entity1.created:

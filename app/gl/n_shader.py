@@ -85,81 +85,11 @@ void main() {
 }
 """
 
-instances_v2_vertex_shader_source = """
-#version 330 core
-
-layout(location = 0) in vec2 position;
-layout(location = 1) in vec2 quad;
-layout(location = 2) in vec2 tex_coord;
-uniform sampler1D color_map;
-uniform sampler2D billboard;
-uniform sampler2D tex1;
-uniform sampler2D tex2;
-uniform float tex_unit = 0; // 0 or 1 
-
-uniform int texture_width;
-uniform int texture_height;
-
-uniform int target_width;
-uniform int target_height;
-
-uniform vec2 position_offset = vec2(0.0, 0.0); 
-uniform mat4 projection_matrix;
-uniform int factor =1;
-uniform float node_gap = 1;
-
-float color_multiplier = 50;
-
-out vec4 color_value;
-out vec2 frag_tex_coord;
-
-
-void main()
-{
-    
-    int selected_width = min(texture_width, target_width);
-    int selected_height = min(texture_height, target_height);
-    float x = gl_InstanceID % selected_width;
-    float y = gl_InstanceID / selected_width;
-    float value_one = texelFetch(tex1, ivec2(x, y), 0).r;
-    float value_two = texelFetch(tex2, ivec2(x, y), 0).r;
-    float value = mix(value_one, value_two, tex_unit);
-    float scaled_x = x * factor;
-    float scaled_y = y * factor;
-
-    vec2 instance_position = vec2(scaled_x * node_gap, scaled_y * node_gap);
-    float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
-    
-    vec4 pos = projection_matrix * vec4(position.xy + instance_position + position_offset, 0.0, 1.0);
-    color_value = texture(color_map, intensified_color_value);
-    gl_Position = pos;
-    frag_tex_coord = tex_coord;
-
-}
-"""
-
-# Fragment shader source code for drawing instances
-instances_v2_fragment_shader_source = """
-#version 330 core
-
-uniform float fading_factor = 1.0f;
-uniform sampler1D color_map;
-in vec4 color_value;
-out vec4 frag_color;
-in vec2 frag_tex_coord;
-
-void main()
-{  
-    frag_color = color_value;
-}
-"""
-
 billboards_v2_vertex_shader_source = """
 #version 330 core
 
-layout(location = 0) in vec2 position;
-layout(location = 1) in vec2 quad;
-layout(location = 2) in vec2 tex_coord;
+layout(location = 0) in vec2 quad;
+layout(location = 1) in vec2 tex_coord;
 uniform sampler1D color_map;
 uniform sampler2D billboard;
 uniform sampler2D tex1;
@@ -272,7 +202,7 @@ void main()
 }
 """
 
-billboards_v3_vertex_shader_source = """
+layer_effects_vertex_shader_source = """
 #version 330 core
 
 layout(location = 0) in vec2 position;
@@ -282,56 +212,58 @@ uniform mat4 projection_matrix;
 
 out vec2 frag_tex_coord;
 
-
 void main()
 {
-    // current quad
     frag_tex_coord = tex_coord;
-    gl_Position =  projection_matrix * vec4(position,0.0,1.0);
+    vec4 quad_position = projection_matrix * vec4(position,0.0,1.0);
+    gl_Position = quad_position;
 }
 """
 # Fragment shader source code for drawing instances
-billboards_v3_fragment_shader_source = """
+layer_effects_fragment_shader_source = """
 #version 330 core
 
-uniform sampler1D color_map;
-uniform sampler2D tex1;
-uniform sampler2D tex2;
-uniform float fading_factor = 0;
-uniform float tex_unit = 0; // 0 or 1 
-uniform float tex_mix_factor = 0; // from 0 to 1 
+uniform float radius = 10;
 
 in vec2 frag_tex_coord;
 
-out vec4 frag_color;
-float color_multiplier = 40;
-float pixelRadius = 0.5;
+uniform vec2 quad_size;
+ 
+out vec4 fragColor;
+
+
 
 void main() {
- 
-    float value_one = texture(tex1, frag_tex_coord).r; 
-    float value_two = texture(tex2, frag_tex_coord).r; 
-    float value = mix(value_one, value_two,tex_unit);
+    // Calculate the position of the fragment in pixels
+    vec2 uv = frag_tex_coord * quad_size;
     
-    float intensified_color_value = clamp(value  * color_multiplier, 0, 1);
-    vec3 color_value = texture(color_map, intensified_color_value).rgb;
-    
-    // Calculate the center of the "pixel"
-    vec2 center = vec2(0.5, 0.5);
-    
-    // Calculate the distance from the current fragment to the center of the "pixel"
-    vec2 dist = fract(gl_FragCoord.xy / pixelRadius) - center;
-    float distance = length(dist);
+    // float radius = min(10,min(quad_size.x * 0.2, quad_size.y * 0.2));
+    // float radius = edge_fade; // Radius of the rounded corners
 
-    // If the distance is greater than the radius, discard the fragment
-    if (distance > 0.5)
-    {
-        discard;
-    }
-    
-    // Sample the texture and set the output color
-    frag_color = vec4(color_value,1);
+    // Calculate the distance to the nearest edge in pixels
+    float dist_to_left = uv.x;
+    float dist_to_right = quad_size.x - uv.x;
+    float dist_to_bottom = uv.y;
+    float dist_to_top = quad_size.y - uv.y;
 
+    // Determine the minimum distance to any edge
+    float dist_to_edge = min(min(dist_to_left, dist_to_right), min(dist_to_bottom, dist_to_top));
+
+    // Calculate the alpha value based on the distance to the edges
+    float alpha_edge = smoothstep(0.0, radius, dist_to_edge);
+
+    // Calculate the distance to the nearest corner
+    vec2 corner_dist = min(min(uv, quad_size - uv), vec2(radius));
+    float dist_to_corner = length(corner_dist - vec2(radius));
+
+    // Calculate the alpha value based on the distance to the corners
+    float alpha_corner = smoothstep(0.0, radius, dist_to_corner);
+
+    // Combine the edge fade and rounded corner effects
+    float alpha = min(alpha_edge, alpha_corner);
+    alpha = clamp(0,0.7,1-alpha_corner);
+    // Set the fragColor with the calculated alpha value
+    fragColor = vec4(1.0, 0.0, 0.0, alpha);
 }
 """
 
@@ -467,21 +399,26 @@ class NShader:
         mouse_position = gl.glGetUniformLocation(self.shader_program, "mouse_position")
         gl.glUniform2f(mouse_position, x1, y1)
 
+    def update_quad_size(self, w, h):
+        update_quad_size = gl.glGetUniformLocation(self.shader_program, "quad_size")
+        gl.glUniform2f(update_quad_size, w, h)
+
     def update_node_gap(self, gap):
         node_gap = gl.glGetUniformLocation(self.shader_program, "node_gap")
         gl.glUniform1f(node_gap, gap)
 
+    def update_radius(self, radius):
+        node_gap = gl.glGetUniformLocation(self.shader_program, "radius")
+        gl.glUniform1f(node_gap, radius)
+
     def compile_color_map_v2_texture_program(self):
         self.compile(cmap_v2_texture_vertex_shader_source, cmap_v2_texture_fragment_shader_source)
-
-    def compile_instances_v2_program(self):
-        self.compile(instances_v2_vertex_shader_source, instances_v2_fragment_shader_source)
 
     def compile_billboards_v2_program(self):
         self.compile(billboards_v2_vertex_shader_source, billboards_v2_fragment_shader_source)
 
-    def compile_billboards_v3_program(self):
-        self.compile(billboards_v3_vertex_shader_source, billboards_v3_fragment_shader_source)
+    def compile_effects_program(self):
+        self.compile(layer_effects_vertex_shader_source, layer_effects_fragment_shader_source)
 
     def compile(self, vertex_shader_source, fragment_shader_source):
         self.shader_version = gl.glGetString(gl.GL_SHADING_LANGUAGE_VERSION)

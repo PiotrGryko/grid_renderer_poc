@@ -31,6 +31,7 @@ class GuiPants:
         self.bottom_info_bar = BottomInfoBar(self.config)
         self.neuron_popup = NeuronPopup(self.config)
         self.context = None
+        self.large_font = None
 
     def show_popup(self, value, layer_meta, world_position):
         self.neuron_popup.show(world_position, value, layer_meta)
@@ -41,6 +42,14 @@ class GuiPants:
     def attach_fancy_gui(self):
         self.context = imgui.create_context()
         self.impl = GlfwRenderer(self.n_window.window, attach_callbacks=False)
+
+        io = imgui.get_io()
+        # Load the default font with a larger size
+        self.large_font = io.fonts.add_font_from_file_ttf("res/ARIAL.TTF", 24.0)  # 24.0 is the font size in pixels
+
+    def wants_mouse(self):
+        io = imgui.get_io()
+        return io.want_capture_mouse
 
     def set_callbacks(self):
         glfw.set_framebuffer_size_callback(self.n_window.window, self.n_window.frame_buffer_size_callback)
@@ -70,6 +79,30 @@ class GuiPants:
         glfw.set_key_callback(self.n_window.window, key_callback_wrapper)
         glfw.set_char_callback(self.n_window.window, char_callback_wrapper)
         glfw.set_scroll_callback(self.n_window.window, mouse_scroll_callback_wrapper)
+
+    def render_scene_buttons(self):
+        # Begin a new window with no title bar, no resize, no move, and no background
+        imgui.set_next_window_position(imgui.get_io().display_size.x - 2 * 110, 10,
+                                       condition=imgui.ONCE)  # Adjust positioning as needed
+        imgui.set_next_window_size(2 * 110 + 20, 40,
+                                   condition=imgui.ONCE)  # Width for two buttons + spacing, and height for one button
+
+        imgui.begin("scene buttons",
+                    flags=imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_BACKGROUND | imgui.WINDOW_NO_SCROLLBAR)
+
+        # Render the buttons
+        if imgui.button("Parameters", 100):
+            print("Weights button clicked")
+            self.config.n_net.set_weights_net_active()
+            self.config.app.reload_view()
+        imgui.same_line()
+        if imgui.button("Modules", 100):
+            print("Neurons button clicked")
+            self.config.n_net.set_neurons_net_active()
+            self.config.app.reload_view()
+
+        # End the window
+        imgui.end()
 
     def render_config_box(self):
         '''
@@ -101,6 +134,27 @@ class GuiPants:
 
         imgui.end()
 
+    def render_active_message(self):
+        if self.config.active_layer is None:
+            return
+        screen_width = imgui.get_io().display_size.x
+        window_width = 500
+        window_height = 100
+        top_spacing = 100
+
+        imgui.set_next_window_bg_alpha(0.0)  # Make background transparent
+        imgui.set_next_window_position((screen_width - window_width) / 2, top_spacing, imgui.ONCE)
+        imgui.set_next_window_size(window_width, window_height, imgui.ONCE)
+        imgui.begin("active_message",
+                    flags=imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_RESIZE)
+
+        r, g, b, a = self.color_theme.color_high
+        imgui.push_style_color(imgui.COLOR_TEXT, r, g, b, a)  # Set text color
+        imgui.text(f"{self.config.active_layer}")
+        imgui.pop_style_color()
+
+        imgui.end()
+
     def render_fancy_pants(self):
 
         # imgui.set_current_context(self.context)
@@ -111,7 +165,9 @@ class GuiPants:
         self.top_menu.render_top_menu()
         self.bottom_info_bar.render_bottom_info_bar()
         self.neuron_popup.render()
+        # self.render_active_message()
         self.render_config_box()
+        self.render_scene_buttons()
         self.layers_view.render()
         self.model_settings_page.render()
 
