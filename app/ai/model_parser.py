@@ -6,7 +6,8 @@ from torch import nn
 
 
 class LayerMeta:
-    def __init__(self, name, layer_type, shape=None, probability=None):
+    def __init__(self, module, name, layer_type, shape=None, probability=None):
+        self.module = module
         self.name = name
         self.layer_type = layer_type
         self.shape = shape
@@ -21,6 +22,21 @@ class LayerMeta:
             self.name = parent_name + "." + self.name
         for c in self.components:
             c.update_names(self.name)
+
+    def hook(self, module, input, output):
+        print("update activations", self.name, type(output))
+        # flattened_output = self.flatten_output(output)
+        # activation = [o.detach().cpu().numpy() for o in flattened_output if o is not None]
+        # activation = [a.reshape(a.shape[0], -1) if len(a.shape) > 2 else a for a in activation]
+        #
+        # info.activation = activation[0] if len(activation) == 1 else activation
+        # info.size_x, info.size_y = info.activation.shape if isinstance(info.activation, np.ndarray) else (
+        #     None, None)
+
+    def register_hooks(self):
+        self.module.register_forward_hook(self.hook)
+        for c in self.components:
+            c.register_hooks()
 
     def __repr__(self, level=0):
         indent = "  " * level
@@ -52,26 +68,12 @@ class ModelParser:
                 flat_list.extend(self.flatten_output(value))
         return flat_list
 
-    def save_activation(self, info):
-        def hook(module, input, output):
-            print("update activations", info.name, type(output))
-            flattened_output = self.flatten_output(output)
-            activation = [o.detach().cpu().numpy() for o in flattened_output if o is not None]
-            activation = [a.reshape(a.shape[0], -1) if len(a.shape) > 2 else a for a in activation]
-
-            info.activation = activation[0] if len(activation) == 1 else activation
-            info.size_x, info.size_y = info.activation.shape if isinstance(info.activation, np.ndarray) else (
-                None, None)
-
-        return hook
-
     def register_hooks(self):
-        for info in self.layers_info:
-            info.module.register_forward_hook(self.save_activation(info))
+        self.parsed_model.register_hooks()
 
     def perform_forward_pass(self, input_text):
         inputs = self.tokenizer(input_text, return_tensors="pt")
-        output = self.model.generate(**inputs, max_new_tokens=10, do_sample=False)
+        output = self.model.generate(**inputs, max_new_tokens=100, do_sample=False)
         generated_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
 
         for info in self.layers_info:
@@ -82,26 +84,27 @@ class ModelParser:
                 if len(activation.shape) == 2:
                     info.size_x, info.size_y = activation.shape
 
-        print(generated_text)
+        print("Input: ",input_text)
+        print("Output: ",generated_text)
         return generated_text
 
     def parse_module(self, module, name):
         if isinstance(module, nn.Embedding):
-            layer_meta = LayerMeta(name, module.__class__.__name__,
+            layer_meta = LayerMeta(module, name, module.__class__.__name__,
                                    [module.num_embeddings, module.embedding_dim])
         elif isinstance(module, nn.Linear):
-            layer_meta = LayerMeta(name, module.__class__.__name__, [module.in_features, module.out_features])
+            layer_meta = LayerMeta(module, name, module.__class__.__name__, [module.in_features, module.out_features])
         elif isinstance(module, nn.LayerNorm):
-            layer_meta = LayerMeta(name, module.__class__.__name__, [module.normalized_shape[0], 1])
+            layer_meta = LayerMeta(module, name, module.__class__.__name__, [module.normalized_shape[0], 1])
         elif isinstance(module, nn.Dropout):
-            layer_meta = LayerMeta(name, module.__class__.__name__, [1, 1], probability=module.p)
+            layer_meta = LayerMeta(module, name, module.__class__.__name__, [1, 1], probability=module.p)
         elif hasattr(module, 'children') and list(module.children()):
-            layer_meta = LayerMeta(name, module.__class__.__name__, )
+            layer_meta = LayerMeta(module, name, module.__class__.__name__, )
             for i, (child_name, child_module) in enumerate(module.named_children()):
                 child_parsed = self.parse_module(child_module, child_name)
                 layer_meta.add_component(child_parsed)
         else:
-            layer_meta = LayerMeta(name, module.__class__.__name__,[1, 1])
+            layer_meta = LayerMeta(module, name, module.__class__.__name__, [1, 1])
         return layer_meta
 
     def model_to_json(self):

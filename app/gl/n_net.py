@@ -93,7 +93,6 @@ class NNet:
                 s = component.shape
                 layer_grid = np.random.uniform(0, 1, (s[0], s[1])).astype(np.float32)
                 names.append(component.name)
-                print("component ",component)
                 layers.append(layer_grid)
                 components.append(component)
 

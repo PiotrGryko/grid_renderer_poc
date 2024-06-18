@@ -199,11 +199,9 @@ class OpenGLApplication:
             index = 0
             tokenizer = AutoTokenizer.from_pretrained(model.name_or_path, local_files_only=True)
             parser = ModelParser(model, tokenizer)
-            r = parser.model_to_json()
-            print(r)
-            # parser.extract_layers_info()
+            parser.model_to_json()
             # parser.register_hooks()
-            # parser.perform_forward_pass("Is everything good? ")
+            # parser.perform_forward_pass("Hi?")
             self.n_net.neurons_net.init_from_model_parser(parser)
             # ModelParser().extract_layers_info(model.named_parameters())
             # for name, t in model.named_parameters():

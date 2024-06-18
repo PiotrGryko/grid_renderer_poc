@@ -32,6 +32,8 @@ class ScienceBasedTerminal(Widget):
         self.cmd_wrapper = TerminalCommandsWrapper(config.app, config.n_net)
         self.console = code.InteractiveConsole(locals={"app": self.cmd_wrapper})
         self.input_changed = False
+        self.last_length = 0
+        self.inserted = False
 
     def execute(self, command):
         old_stdout = sys.stdout
@@ -64,34 +66,102 @@ class ScienceBasedTerminal(Widget):
     def _update_visibility(self):
         self.opened = self.config.show_terminal_view
 
-    def _content(self):
+    def attach_media_button(self):
+        # Set cursor position with padding for the attach media button
+        imgui.begin_child("buttonattach", width=45, height=100, border=False)
+        imgui.set_cursor_position((10, 90 - 25))
+        if imgui.button("📎", width=25, height=25):
+            print("Attach media button pressed")
+        # Reset cursor position to after the button
+        imgui.end_child()
 
-        window_height = imgui.get_window_height()
-        input_height = 20
-        padding = 5
+    def send_button(self):
+        # Set cursor position with padding for the send button
+        imgui.begin_child("sendbutton", width=70, height=100, border=False)
+        imgui.set_cursor_position((10, 90 - 25))
+        if imgui.button("Send", width=50, height=25):
+            print("Send button pressed")
+        imgui.end_child()
 
-        imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (5, 5))
-        imgui.text("Output:")
-        imgui.begin_child("output", height=window_height - input_height - 40, width=0, border=False)
+    def input_box(self):
+        width = imgui.get_content_region_available_width() - 70
+        height = 100
 
-        imgui.text_unformatted(self.output)
+        def input_callback(data):
+            if self.last_length != data.buffer_text_length and not self.inserted:
+                text = self.wrap_text(data.buffer, width)
+                data.delete_chars(0, data.buffer_text_length)
+                data.insert_chars(0, text)
+                self.last_length = data.buffer_text_length
+
+        imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (10, 10))
+
+        imgui.begin_child("ScrollingRegion", width, height,
+                          border=True,
+                          flags=imgui.WINDOW_NO_SCROLLBAR)
+
+        imgui.push_style_var(imgui.STYLE_SCROLLBAR_SIZE, 1)
+        imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (0, 0))
+        imgui.push_style_var(imgui.STYLE_CELL_PADDING, (10, 10))
+        imgui.push_style_color(imgui.COLOR_FRAME_BACKGROUND, 0, 0, 0, 0)
+        # Input Text Box
+        (changed, value) = imgui.input_text_multiline(
+            "##input_text", self.input_buffer, -1,
+            width=width - 20,
+            height=height - 20,
+            callback=input_callback,
+            flags=imgui.INPUT_TEXT_CALLBACK_ALWAYS | imgui.INPUT_TEXT_NO_HORIZONTAL_SCROLL | imgui.INPUT_TEXT_ENTER_RETURNS_TRUE | imgui.INPUT_TEXT_CTRL_ENTER_FOR_NEW_LINE
+        )
+        imgui.pop_style_color()
+        imgui.pop_style_var(3)
+
+        self.input_changed = changed
         if self.input_changed:
-            imgui.set_scroll_here_y(1.0)  # Scroll to bottom if the child window is active
+            self.input_buffer = value
+            imgui.set_keyboard_focus_here()
 
         imgui.end_child()
+        imgui.pop_style_var(1)
+
+    def wrap_text(self, text, max_width):
+        wrapped_lines = []
+        current_line = ""
+
+        for char in text:
+            if imgui.calc_text_size(current_line + char)[0] < max_width - 20:
+                current_line += char
+            else:
+                wrapped_lines.append(current_line)
+                current_line = char
+
+        # Append the last line
+        if current_line:
+            wrapped_lines.append(current_line)
+
+        return '\n'.join(wrapped_lines)
+
+    def _content(self):
+
+        input_height = 100
+        button_height = 25
+        padding = 10
+        available_height = imgui.get_content_region_available()[1] - (input_height + button_height + 2 * padding)
+        available_width = imgui.get_content_region_available()[0] - 2 * padding
+
+        imgui.set_cursor_pos((padding, padding))
+
+        # Render the output field
+        imgui.begin_child("OutputField", width=available_width, height=available_height, border=True)
+        imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (10, 10))
+        imgui.text_unformatted(self.output)
         imgui.pop_style_var()
+        imgui.end_child()
+        imgui.set_cursor_pos_y(imgui.get_cursor_pos_y() + padding)
 
-        imgui.separator()
-
-        # Input section
-        imgui.set_cursor_pos_y(window_height - input_height - padding)  # Position input at the bottom
-        imgui.set_cursor_pos_x(padding)
-        imgui.text("Input:")
-        imgui.same_line()
-        imgui.push_item_width(-1 - padding * 2)  # Make input field fill the remaining width
-        self.input_changed, self.input_buffer = imgui.input_text("", self.input_buffer, 256,
-                                                                 imgui.INPUT_TEXT_ENTER_RETURNS_TRUE)
-        imgui.pop_item_width()
+        imgui.begin_group()
+        self.attach_media_button()
+        imgui.same_line(spacing=0)
+        self.input_box()
 
         if self.input_changed:
             self.history.append(self.input_buffer)
@@ -101,4 +171,7 @@ class ScienceBasedTerminal(Widget):
             else:
                 self.execute(self.input_buffer)
             self.input_buffer = ""
-            imgui.set_keyboard_focus_here()  # Keep focus on the input box
+
+        imgui.same_line(spacing=0)
+        self.send_button()
+        imgui.end_group()

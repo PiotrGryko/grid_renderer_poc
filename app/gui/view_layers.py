@@ -24,6 +24,8 @@ class LayerItem:
         self.collapsed_height = 25
         self.expanded_height = 70
 
+        self.hover_bounds = None
+
     def calculate_bounds(self):
         all_bounds = []
         if self.bounds is None:
@@ -43,60 +45,55 @@ class LayerItem:
             self.description = f"Size: {col_max - col_min}x{row_max - row_min}"
         return self.bounds
 
-    def _render(self, on_hover, on_hover_end, on_jump, level=0):
+    def _render(self, on_hover, on_hover_end, on_jump, full_name=True, level=0):
         layer = self
-        hovered = False
-        height = self.expanded_height if self.expanded else self.collapsed_height
+        if self.hovered and self.hover_bounds is not None:
+            draw_list = imgui.get_window_draw_list()
+            hover_color = imgui.get_color_u32_rgba(0.2, 0.4, 0.8, 0.5)  # semi-transparent blue
+            draw_list.add_rect_filled(self.hover_bounds[0], self.hover_bounds[1], self.hover_bounds[2],
+                                      self.hover_bounds[3],
+                                      hover_color)
 
-        if self.hovered:
-            imgui.push_style_color(imgui.COLOR_CHILD_BACKGROUND, 0.2, 0.4, 0.8, 0.5)  # Blue background
-
-        imgui.push_style_var(imgui.STYLE_ITEM_SPACING, (0, 0))
-
-        imgui.begin_child(f"child_{layer.id}", width=0, height=height, border=False)
-
+        imgui.push_style_var(imgui.STYLE_ITEM_SPACING, (0, 1))
+        start_pos = imgui.get_cursor_screen_pos()
         for i in range(level):
             imgui.indent()
-
+        name = layer.name if full_name else layer.display_name
         self.expanded, _ = imgui.collapsing_header(
-            layer.name,
+            f"{name}##{layer.id}",
             flags=imgui.TREE_NODE_DEFAULT_OPEN if self.expanded else 0)
-        if imgui.is_item_hovered() and imgui.is_mouse_clicked(imgui.MOUSE_BUTTON_LEFT):
-            print(f"Child {layer.id} clicked")
-            self.clicked = True
-        imgui.indent()
 
         if self.expanded:
-            imgui.dummy(0,5)
+            imgui.indent()
+            imgui.dummy(0, 5)
             imgui.text(layer.description)
-            imgui.dummy(0,5)
+            imgui.dummy(0, 5)
             if imgui.button(f"Jump##{layer.id}"):
                 on_jump(self)
-
-        imgui.end_child()
+            imgui.dummy(0, 5)
+            imgui.unindent()
+        for i in range(level):
+            imgui.unindent()
         imgui.pop_style_var(1)
 
-        if self.hovered:
-            imgui.pop_style_color()
+        end_pos = imgui.get_cursor_screen_pos()
+        window_pos = imgui.get_window_position()
+        window_width = imgui.get_window_size()[0]
+        item_rect_min = (window_pos[0], start_pos[1])
+        item_rect_max = (window_pos[0] + window_width, end_pos[1])
 
-        if imgui.is_item_hovered() and imgui.is_mouse_clicked(imgui.MOUSE_BUTTON_LEFT):
-            print(f"Child {layer.id} clicked")
-            self.clicked = True
+        bounds = [item_rect_min[0], item_rect_min[1], item_rect_max[0], item_rect_max[1]]
+        if self.hover_bounds != bounds:
+            self.hover_bounds = bounds
 
-        if imgui.is_item_hovered():
+        hovered = False
+        # Check if the mouse is hovering within the bounds
+        if imgui.is_mouse_hovering_rect(item_rect_min[0], item_rect_min[1], item_rect_max[0], item_rect_max[1]):
             hovered = True
-
-        if self.clicked:
-            hovered = True
-
-        if imgui.is_mouse_released(imgui.MOUSE_BUTTON_LEFT):
-            if self.clicked:
-                print(f"Child {layer.id} released")
-            self.clicked = False
 
         if self.expanded:
             for index, c in enumerate(layer.children):
-                c._render(on_hover, on_hover_end, on_jump, level=level + 1)
+                c._render(on_hover, on_hover_end, on_jump, False, level=level + 1)
 
         if hovered is False and self.hovered:
             print("hover end", self.name, self.clicked)
@@ -210,7 +207,6 @@ class LayersView(Widget):
                     self.on_hover_end,
                     self.on_jump
                 )
-                # self._render_layer(layer, i)
         else:
             if self.tree_item is None:
                 self._create_tree_items()
@@ -219,7 +215,3 @@ class LayersView(Widget):
                 self.on_hover_end,
                 self.on_jump
             )
-            # self._render_layer(self.tree_item, 0)
-
-        # if not self.hovering and self.hover_id is not None:
-        #     self.on_hover_end()
