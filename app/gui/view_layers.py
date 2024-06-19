@@ -45,9 +45,17 @@ class LayerItem:
             self.description = f"Size: {col_max - col_min}x{row_max - row_min}"
         return self.bounds
 
-    def _render(self, on_hover, on_hover_end, on_jump, full_name=True, level=0):
+    def _render(self, on_hover, on_hover_end, on_jump, full_name=True, active_layer_name=None, level=0):
         layer = self
-        if self.hovered and self.hover_bounds is not None:
+
+        if active_layer_name is not None and layer.name in active_layer_name:
+            draw_list = imgui.get_window_draw_list()
+            hover_color = imgui.get_color_u32_rgba(1, 0.4, 0.0, 0.5)  # semi-transparent blue
+            draw_list.add_rect_filled(self.hover_bounds[0], self.hover_bounds[1], self.hover_bounds[2],
+                                      self.hover_bounds[3],
+                                      hover_color)
+
+        elif self.hovered and self.hover_bounds is not None:
             draw_list = imgui.get_window_draw_list()
             hover_color = imgui.get_color_u32_rgba(0.2, 0.4, 0.8, 0.5)  # semi-transparent blue
             draw_list.add_rect_filled(self.hover_bounds[0], self.hover_bounds[1], self.hover_bounds[2],
@@ -93,7 +101,7 @@ class LayerItem:
 
         if self.expanded:
             for index, c in enumerate(layer.children):
-                c._render(on_hover, on_hover_end, on_jump, False, level=level + 1)
+                c._render(on_hover, on_hover_end, on_jump, False, level=level + 1, active_layer_name=active_layer_name)
 
         if hovered is False and self.hovered:
             print("hover end", self.name, self.clicked)
@@ -205,7 +213,8 @@ class LayersView(Widget):
                 layer._render(
                     self.on_hover,
                     self.on_hover_end,
-                    self.on_jump
+                    self.on_jump,
+                    active_layer_name=self.config.effects.raw_id
                 )
         else:
             if self.tree_item is None:
@@ -213,5 +222,6 @@ class LayersView(Widget):
             self.tree_item._render(
                 self.on_hover,
                 self.on_hover_end,
-                self.on_jump
+                self.on_jump,
+                active_layer_name=self.config.effects.raw_id
             )

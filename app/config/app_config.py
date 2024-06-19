@@ -14,6 +14,7 @@ class LittleConfig:
         self.model_directory = None
         self.filename = "config.json"
 
+
     def load_config(self):
 
         script_dir = os.path.dirname(os.path.abspath(__file__))

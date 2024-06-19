@@ -1,4 +1,5 @@
 import os
+import threading
 
 import numpy as np
 import torch
@@ -13,6 +14,7 @@ class LayerMeta:
         self.shape = shape
         self.probability = probability
         self.components = []
+        self.n_effects = None
 
     def add_component(self, component):
         self.components.append(component)
@@ -25,18 +27,13 @@ class LayerMeta:
 
     def hook(self, module, input, output):
         print("update activations", self.name, type(output))
-        # flattened_output = self.flatten_output(output)
-        # activation = [o.detach().cpu().numpy() for o in flattened_output if o is not None]
-        # activation = [a.reshape(a.shape[0], -1) if len(a.shape) > 2 else a for a in activation]
-        #
-        # info.activation = activation[0] if len(activation) == 1 else activation
-        # info.size_x, info.size_y = info.activation.shape if isinstance(info.activation, np.ndarray) else (
-        #     None, None)
+        self.n_effects.show_quad_raw(self.name)
 
-    def register_hooks(self):
+    def register_hooks(self, n_effects):
+        self.n_effects = n_effects
         self.module.register_forward_hook(self.hook)
         for c in self.components:
-            c.register_hooks()
+            c.register_hooks(n_effects)
 
     def __repr__(self, level=0):
         indent = "  " * level
@@ -50,45 +47,22 @@ class LayerMeta:
 
 
 class ModelParser:
-    def __init__(self, model, tokenizer):
-        self.model = model
-        self.tokenizer = tokenizer
-        self.layers_info = []
+    def __init__(self, n_effects):
+        self.n_effects = n_effects
+        self.model = None
+        self.tokenizer = None
         self.parsed_model = None
+        self.hooks_registered = False
 
-    def flatten_output(self, output):
-        flat_list = []
-        if isinstance(output, tuple):
-            for item in output:
-                flat_list.extend(self.flatten_output(item))
-        elif isinstance(output, torch.Tensor):
-            flat_list.append(output)
-        elif hasattr(output, '__dict__'):  # For objects like BaseModelOutputWithPast
-            for value in output.__dict__.values():
-                flat_list.extend(self.flatten_output(value))
-        return flat_list
+        self.last_result = None
 
-    def register_hooks(self):
-        self.parsed_model.register_hooks()
+    def _register_hooks(self):
+        if self.hooks_registered:
+            return
+        self.parsed_model.register_hooks(self.n_effects)
+        self.hooks_registered = True
 
-    def perform_forward_pass(self, input_text):
-        inputs = self.tokenizer(input_text, return_tensors="pt")
-        output = self.model.generate(**inputs, max_new_tokens=100, do_sample=False)
-        generated_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
-
-        for info in self.layers_info:
-            if info.activation is not None:
-                activation = info.activation
-                if isinstance(activation, list):
-                    activation = activation[0]
-                if len(activation.shape) == 2:
-                    info.size_x, info.size_y = activation.shape
-
-        print("Input: ",input_text)
-        print("Output: ",generated_text)
-        return generated_text
-
-    def parse_module(self, module, name):
+    def _parse_module(self, module, name):
         if isinstance(module, nn.Embedding):
             layer_meta = LayerMeta(module, name, module.__class__.__name__,
                                    [module.num_embeddings, module.embedding_dim])
@@ -101,21 +75,43 @@ class ModelParser:
         elif hasattr(module, 'children') and list(module.children()):
             layer_meta = LayerMeta(module, name, module.__class__.__name__, )
             for i, (child_name, child_module) in enumerate(module.named_children()):
-                child_parsed = self.parse_module(child_module, child_name)
+                child_parsed = self._parse_module(child_module, child_name)
                 layer_meta.add_component(child_parsed)
         else:
             layer_meta = LayerMeta(module, name, module.__class__.__name__, [1, 1])
         return layer_meta
 
-    def model_to_json(self):
+    def perform_forward_pass(self, input_text):
+        thread = threading.Thread(target=self._perform_forward_pass_internal, args=(input_text,))
+        thread.start()
+        return thread
+
+    def pool_forward_pass_result(self):
+        if self.last_result is not None:
+            r = self.last_result
+            self.last_result = None
+            return r
+        else:
+            return None
+
+    def _perform_forward_pass_internal(self, input_text):
+        self._register_hooks()
+        inputs = self.tokenizer(input_text, return_tensors="pt")
+        output = self.model.generate(**inputs, max_new_tokens=100, do_sample=False)
+        generated_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
+
+        print("Input: ", input_text)
+        print("Output: ", generated_text)
+        self.last_result = generated_text
+
+    def load_hg_model(self, model, tokenizer):
+        self.model = model
+        self.tokenizer = tokenizer
         _, module = list(self.model.named_modules())[0]
         name = os.path.basename(self.model.name_or_path)
-        parsed_model = self.parse_module(module, name)
+        parsed_model = self._parse_module(module, name)
         parsed_model.update_names()
-        # parsed_model.calculate_bounds()
-        # parsed_model.count_layers()
-        # parsed_model.calculate_offsets(gap_between_layers=parsed_model.layers_count)
+
         self.parsed_model = parsed_model
-        # offset_model = self.calculate_offsets(parsed_model)
-        # json_output = json.dumps(offset_model, indent=2)
+
         return parsed_model

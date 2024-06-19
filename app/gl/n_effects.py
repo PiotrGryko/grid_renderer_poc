@@ -89,13 +89,13 @@ class NEffects:
         self.n_window = n_window
         self.layer_effect = None
         self.zoom = 0
-        self.id = id
+        self.id = None
+        self.raw_id = None
 
     def on_viewport_changed(self, viewport):
         x, y, w, h, zoom = viewport
         if self.layer_effect is not None and self.zoom != zoom:
             self.zoom = zoom
-            print("Effect zoom", zoom)
             self.layer_effect.updated = False
 
     def show_quad(self, id, bounds):
@@ -103,6 +103,19 @@ class NEffects:
             self.layer_effect = LayerEffect()
         self.id = id
         self.layer_effect.show_quad(id, bounds)
+
+    def show_quad_raw(self, id):
+        if self.layer_effect is None:
+            self.layer_effect = LayerEffect()
+        self.id = id
+        self.raw_id = id
+        bounds = None
+        for l in self.n_net.layers:
+            if self.id == l.name:
+                bounds = l.meta.bounds
+                break
+        if bounds is not None:
+            self.layer_effect.show_quad(id, bounds)
 
     def hide(self, id):
         if self.layer_effect is not None and self.id == id:

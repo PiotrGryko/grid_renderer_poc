@@ -50,6 +50,8 @@ class OpenGLApplication:
                                 self.buffer_height)
         self.n_effects = NEffects(self.n_net, self.n_window)
 
+        self.model_parser = ModelParser(self.n_effects)
+
         self.gui_config = GuiConfig(
             self.n_net,
             self.n_window,
@@ -59,7 +61,8 @@ class OpenGLApplication:
             self,
             self.download_manager,
             self.camera_animation,
-            self.n_effects)
+            self.n_effects,
+            self.model_parser)
 
         self.gui = GuiPants(self.gui_config)
 
@@ -198,11 +201,10 @@ class OpenGLApplication:
         if model is not None:
             index = 0
             tokenizer = AutoTokenizer.from_pretrained(model.name_or_path, local_files_only=True)
-            parser = ModelParser(model, tokenizer)
-            parser.model_to_json()
+            self.model_parser.load_hg_model(model, tokenizer)
             # parser.register_hooks()
             # parser.perform_forward_pass("Hi?")
-            self.n_net.neurons_net.init_from_model_parser(parser)
+            self.n_net.neurons_net.init_from_model_parser(self.model_parser)
             # ModelParser().extract_layers_info(model.named_parameters())
             # for name, t in model.named_parameters():
             #     print(index, "name", name, "shape", t.shape)

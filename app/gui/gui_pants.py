@@ -64,8 +64,11 @@ class GuiPants:
             self.impl.char_callback(window, char)
 
         def mouse_scroll_callback_wrapper(window, x_offset, y_offset):
-            self.n_window.mouse_scroll_callback(window, x_offset, y_offset)
-            self.impl.scroll_callback(window, x_offset, y_offset)
+            io = imgui.get_io()
+            if not io.want_capture_mouse:
+                self.n_window.mouse_scroll_callback(window, x_offset, y_offset)
+            else:
+                self.impl.scroll_callback(window, x_offset, y_offset)
 
         def mouse_input_wrapper(window, button, action, mods):
             io = imgui.get_io()

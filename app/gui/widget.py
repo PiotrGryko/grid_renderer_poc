@@ -42,8 +42,10 @@ class Widget:
         if self.selected:
             imgui.push_style_color(imgui.COLOR_CHILD_BACKGROUND, 0.2, 0.4, 0.8, 1.0)
 
+        imgui.push_style_var(imgui.STYLE_ITEM_SPACING, (0, 0))
         imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (5, 5))
         imgui.begin_child("TitleBar", height=30, border=True)
+
         imgui.text(self.window_name)
         imgui.same_line(imgui.get_window_width() - 145)
         if imgui.button("Detach"):
@@ -75,7 +77,7 @@ class Widget:
             print("Close button pressed")
 
         imgui.end_child()
-        imgui.pop_style_var()
+        imgui.pop_style_var(2)
         if self.selected:
             imgui.pop_style_color()
 
@@ -157,7 +159,6 @@ class Widget:
             imgui.end()
             imgui.pop_style_var(1)  # This should match the number of push_style_var calls
 
-
     def _framebuffer_size_callback(self, window, width, height):
         self.window_width = width
         self.window_height = height
@@ -183,6 +184,7 @@ class Widget:
             self.detached_impl = GlfwRenderer(self.detached_window)
             glfw.set_window_size_callback(self.detached_window, self._framebuffer_size_callback)
             glfw.set_window_refresh_callback(self.detached_window, self._window_refresh_callback)
+
         else:
             glfw.make_context_current(self.detached_window)
             imgui.set_current_context(self.context)
@@ -190,7 +192,6 @@ class Widget:
     def _detached(self):
 
         if self.detached_window is not None and not glfw.window_should_close(self.detached_window):
-            glfw.poll_events()
             self.detached_impl.process_inputs()
             imgui.new_frame()
             imgui.set_next_window_position(0, 0, condition=imgui.ALWAYS)
@@ -201,13 +202,19 @@ class Widget:
                 flags=imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE)
             self.selected = imgui.is_window_focused()
             self._detached_title_bar()
+            imgui.begin_child("##detached_content", border=False)
             self._content()
+            imgui.end_child()
 
             imgui.end()
             imgui.pop_style_var(1)  # This should match the number of push_style_var calls
             imgui.render()
             self.detached_impl.render(imgui.get_draw_data())
             glfw.swap_buffers(self.detached_window)
+            glfw.poll_events()
+
+
+
 
     def close(self):
         if self.detached_window is not None and glfw.window_should_close(self.detached_window):
