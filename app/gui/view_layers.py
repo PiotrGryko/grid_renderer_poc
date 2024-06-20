@@ -47,8 +47,7 @@ class LayerItem:
 
     def _render(self, on_hover, on_hover_end, on_jump, full_name=True, active_layer_name=None, level=0):
         layer = self
-
-        if active_layer_name is not None and layer.name in active_layer_name:
+        if self.hover_bounds is not None and active_layer_name is not None and layer.name in active_layer_name:
             draw_list = imgui.get_window_draw_list()
             hover_color = imgui.get_color_u32_rgba(1, 0.4, 0.0, 0.5)  # semi-transparent blue
             draw_list.add_rect_filled(self.hover_bounds[0], self.hover_bounds[1], self.hover_bounds[2],
@@ -114,18 +113,24 @@ class LayerItem:
 
 class LayersView(Widget):
     def __init__(self, config):
-        super().__init__("Layers")
+        super().__init__("Layers", config)
         self.config = config
         self.expanded = {}
         self.n_net = config.n_net
         self.hover_id = None
         self.width = 250
         self.camera_animation = config.camera_animation
-        self.flat_items = []
-        self.tree_item = None
+
         self.hovering = False
 
-    def _create_flat_items(self):
+        self.weights_layers = []
+        self.model_tree = None
+
+        self.current_weights_id = None
+        self.current_model_id = None
+
+    def _load_weights_layers(self):
+        self.flat_items = []
         for l in self.n_net.layers:
             self.flat_items.append(LayerItem(
                 name=l.name,
@@ -136,7 +141,7 @@ class LayersView(Widget):
                 description=f"Size: {l.columns_count}x{l.rows_count} {l.size} elements"
             ))
 
-    def _create_tree_items(self):
+    def _load_model_layers(self):
         def fill_leaf(layer_item, component):
             for c in component.components:
                 l = next((item for item in self.n_net.layers if item.name == c.name), None)
@@ -162,7 +167,7 @@ class LayersView(Widget):
                 layer_item.children.append(item)
                 fill_leaf(item, c)
 
-        tree = self.n_net.layers_tree
+        tree = self.config.model_parser.parsed_model
         top_item = LayerItem(
             name=tree.name,
             bounds=None,
@@ -173,7 +178,7 @@ class LayersView(Widget):
         )
         fill_leaf(top_item, tree)
         top_item.calculate_bounds()
-        self.tree_item = top_item
+        self.model_tree = top_item
 
     def _on_visibility_changed(self):
         self.config.show_layers_view = self.opened
@@ -202,10 +207,10 @@ class LayersView(Widget):
 
     def _content(self):
         self.hovering = False
-        if self.n_net.layers_tree is None:
-            if len(self.flat_items) == 0:
-                self._create_flat_items()
-
+        if self.n_net.show_weights:
+            if self.n_net.loaded_data_id != self.current_weights_id:
+                self._load_weights_layers()
+                self.current_weights_id = self.n_net.loaded_data_id
             if len(self.expanded) != len(self.flat_items):
                 self.expanded = {}
 
@@ -216,10 +221,12 @@ class LayersView(Widget):
                     self.on_jump,
                     active_layer_name=self.config.effects.raw_id
                 )
+
         else:
-            if self.tree_item is None:
-                self._create_tree_items()
-            self.tree_item._render(
+            if self.current_model_id != self.config.model_parser.parsed_model.name:
+                self._load_model_layers()
+                self.current_model_id = self.model_tree.name
+            self.model_tree._render(
                 self.on_hover,
                 self.on_hover_end,
                 self.on_jump,

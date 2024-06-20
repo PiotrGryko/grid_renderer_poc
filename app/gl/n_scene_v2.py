@@ -229,6 +229,8 @@ class NSceneV2:
 
         self.blend_calculator = NBlendCalculator()
 
+        self.force_update = False
+
     def destroy(self):
         self.entity1.destroy()
         self.entity2.destroy()
@@ -247,8 +249,8 @@ class NSceneV2:
         if self.entity2.visible_grid_part == current_quad:
             should_update = False
 
-        if should_update:
-
+        if should_update or self.force_update:
+            self.force_update = False
             if self.current_entity is not None and self.current_entity.visible_grid_part.zoom == current_quad.zoom:
                 self.dragged = True
             else:

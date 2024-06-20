@@ -1,8 +1,6 @@
-import glfw
-import imgui
-from imgui.integrations.glfw import GlfwRenderer
-
 from enum import Enum
+
+import imgui
 
 
 class ViewType(Enum):
@@ -13,29 +11,41 @@ class ViewType(Enum):
 
 
 class Widget:
-    def __init__(self, name):
+    def __init__(self, name, gui_config):
+        self.gui_config = gui_config
         self.window_name = name
         self.view_type = ViewType.FLOATING
-        self.detached_window = None
-        self.detached_impl = None
         self.context = None
         self.opened = True
         self.detached = False
         self.selected = False
 
-        self.window_width = 300
-        self.window_height = 400
+        self.width = 300
+        self.height = 400
+
+        self.load_from_config()
+
+    def save_config(self):
+        widget_config = {
+            'opened': self.opened,
+            'width': self.width,
+            'height': self.height,
+            'view_type': self.view_type.value
+        }
+        self.gui_config.app_config.gui_state_config[self.window_name] = widget_config
+        self.gui_config.app_config.save_config()
+
+    def load_from_config(self):
+        widget_config = self.gui_config.app_config.gui_state_config.get(self.window_name)
+        print("Load from config",self.window_name, widget_config)
+        if widget_config:
+            self.opened = widget_config['opened']
+            self.width = widget_config['width']
+            self.height = widget_config['height']
+            self.view_type = ViewType(widget_config['view_type'])
 
     # Override this to render custom content
     def _content(self):
-        pass
-
-    # On visibility changed, called on self.opened change
-    def _on_visibility_changed(self):
-        pass
-
-    # Set visibility from config
-    def _update_visibility(self):
         pass
 
     def _attached_title_bar(self):
@@ -48,23 +58,24 @@ class Widget:
 
         imgui.text(self.window_name)
         imgui.same_line(imgui.get_window_width() - 145)
-        if imgui.button("Detach"):
-            print("Close button pressed")
-            self.detached = True
 
         imgui.same_line(imgui.get_window_width() - 90)
         if imgui.begin_popup_context_item("DockPopup"):
             if imgui.selectable("Float")[1]:
                 self.view_type = ViewType.FLOATING
+                self.calculate_window_size()
                 print("Dock Left selected")
             if imgui.selectable("Dock Left")[1]:
                 self.view_type = ViewType.DOCK_LEFT
+                self.calculate_window_size()
                 print("Dock Left selected")
             if imgui.selectable("Dock Right")[1]:
                 self.view_type = ViewType.DOCK_RIGHT
+                self.calculate_window_size()
                 print("Dock Right selected")
             if imgui.selectable("Dock Bottom")[1]:
                 self.view_type = ViewType.DOCK_BOTTOM
+                self.calculate_window_size()
                 print("Dock Bottom selected")
             imgui.end_popup()
         if imgui.button("Dock"):
@@ -72,8 +83,6 @@ class Widget:
         imgui.same_line(imgui.get_window_width() - 50)
         if imgui.button("Close"):
             self.opened = False
-            self._on_visibility_changed()
-            # Handle detaching logic here
             print("Close button pressed")
 
         imgui.end_child()
@@ -81,68 +90,46 @@ class Widget:
         if self.selected:
             imgui.pop_style_color()
 
-    def _detached_title_bar(self):
-        if self.selected:
-            imgui.push_style_color(imgui.COLOR_CHILD_BACKGROUND, 0.2, 0.4, 0.8, 1.0)  # Blue background
-
-            # Push padding style for the custom title bar
-        imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (5, 5))
-        # Custom title bar
-        imgui.begin_child("TitleBar", height=30, border=True)
-        imgui.text(self.window_name)
-        imgui.same_line(imgui.get_window_width() - 55)
-        if imgui.button("Attach"):
-            self.detached = False
-            self.opened = True
-            self._on_visibility_changed()
-            glfw.set_window_should_close(self.detached_window, True)
-            print("Attach button pressed")
-        imgui.end_child()
-        imgui.pop_style_var()
-        if self.selected:
-            imgui.pop_style_color()
+    def calculate_window_size(self):
+        w = imgui.get_io().display_size[0]
+        h = imgui.get_io().display_size[1]
+        if self.view_type == ViewType.FLOATING:
+            self.width = min(self.width, w - 10)
+            self.height = min(self.height, h - 10)
+        elif self.view_type == ViewType.DOCK_LEFT:
+            self.width = min(self.width, w / 4)
+            self.height = h
+        elif self.view_type == ViewType.DOCK_RIGHT:
+            self.width = min(self.width, w / 4)
+            self.height = h
+        elif self.view_type == ViewType.DOCK_BOTTOM:
+            self.width = w
+            self.height = min(self.height, h / 4)
 
     def render(self):
-        self._update_visibility()
-
-        if not self.opened and self.detached_window is not None:
-            glfw.set_window_should_close(self.detached_window, True)
-
-        if self.detached:
-            return
-        self._attached()
-
-    def render_detached(self, context, n_window):
-        self._activate_detached_context()
-        self._detached()
-        self.close()
-
-        glfw.make_context_current(n_window.window)
-        imgui.set_current_context(context)
-
-    def _attached(self):
+        bottom_bar = 30
+        top_bar = 18
         if self.opened:
-            # Update the position and size based on the current view type
             if self.view_type == ViewType.FLOATING:
                 pass
-                # imgui.set_next_window_size(self.window_width, self.window_height)
-                # imgui.set_next_window_position(50, 50)
             elif self.view_type == ViewType.DOCK_LEFT:
-                imgui.set_next_window_size(300, imgui.get_io().display_size[1])
-                imgui.set_next_window_position(0, 0)
+                imgui.set_next_window_size(self.width, imgui.get_io().display_size[1] - top_bar - bottom_bar)
+                imgui.set_next_window_position(0, top_bar)
             elif self.view_type == ViewType.DOCK_RIGHT:
-                imgui.set_next_window_size(300, imgui.get_io().display_size[1])
-                imgui.set_next_window_position(imgui.get_io().display_size[0] - 300, 0)
+                imgui.set_next_window_size(self.width, imgui.get_io().display_size[1] - top_bar - bottom_bar)
+                imgui.set_next_window_position(imgui.get_io().display_size[0] - self.width, top_bar)
             elif self.view_type == ViewType.DOCK_BOTTOM:
-                imgui.set_next_window_size(imgui.get_io().display_size[0], 200)
-                imgui.set_next_window_position(0, imgui.get_io().display_size[1] - 200)
+                imgui.set_next_window_size(imgui.get_io().display_size[0], self.height)
+                imgui.set_next_window_position(0, imgui.get_io().display_size[1] - self.height - bottom_bar)
 
             imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (0.0, 0.0))
-            expanded, opened = imgui.begin(self.window_name, flags=imgui.WINDOW_NO_TITLE_BAR)
+
+            flags = imgui.WINDOW_NO_TITLE_BAR if self.view_type == ViewType.FLOATING else imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE
+
+            expanded, opened = imgui.begin(self.window_name, flags=flags)
 
             if opened != self.opened:
                 self.opened = opened
-                self._on_visibility_changed()
 
             if expanded:
                 self._attached_title_bar()
@@ -152,74 +139,80 @@ class Widget:
 
                 self._content()
                 imgui.end_child()
+
+            io = imgui.get_io()
+            display_size = io.display_size
+            mouse_pos = imgui.get_mouse_pos()
+            window_pos = imgui.get_window_position()
+            window_size = imgui.get_window_size()
+
+            is_hovered = False
+            draw_list = imgui.get_window_draw_list()
+
+            hover_size = 10
+
+            if (self.view_type == ViewType.DOCK_LEFT
+                    and mouse_pos[0] < window_pos[0] + window_size[0]
+                    and mouse_pos[0] > window_pos[0] + window_size[0] - hover_size):
+                is_hovered = True
+                imgui.set_mouse_cursor(imgui.MOUSE_CURSOR_RESIZE_EW)
+                if imgui.is_mouse_down(imgui.MOUSE_BUTTON_LEFT):
+                    self.resizing = True
+
+            if (self.view_type == ViewType.DOCK_RIGHT
+                    and mouse_pos[0] > window_pos[0]
+                    and mouse_pos[0] < window_pos[0] + hover_size):
+                is_hovered = True
+                imgui.set_mouse_cursor(imgui.MOUSE_CURSOR_RESIZE_EW)
+                if imgui.is_mouse_down(imgui.MOUSE_BUTTON_LEFT):
+                    self.resizing = True
+
+            if (self.view_type == ViewType.DOCK_BOTTOM
+                    and mouse_pos[1] > window_pos[1]
+                    and mouse_pos[1] < window_pos[1] + hover_size):
+                imgui.set_mouse_cursor(imgui.MOUSE_CURSOR_RESIZE_NS)
+                is_hovered = True
+                if imgui.is_mouse_down(imgui.MOUSE_BUTTON_LEFT):
+                    self.resizing = True
+                    print("self. resizing", self.resizing)
+
+            if not imgui.is_mouse_down(imgui.MOUSE_BUTTON_LEFT):
+                self.resizing = False
+
+            if self.resizing:
+                if self.view_type == ViewType.DOCK_LEFT:
+                    self.width = int(mouse_pos[0])
+                elif self.view_type == ViewType.DOCK_RIGHT:
+                    self.width = int(display_size[0] - mouse_pos[0])
+                elif self.view_type == ViewType.DOCK_BOTTOM:
+                    self.height = int(display_size[1] - mouse_pos[1] - bottom_bar)
+
             if self.view_type == ViewType.FLOATING:
                 w, h = imgui.get_window_size()
-                self.window_width = int(w)
-                self.window_height = int(h)
-            imgui.end()
-            imgui.pop_style_var(1)  # This should match the number of push_style_var calls
+                self.width = int(w)
+                self.height = int(h)
 
-    def _framebuffer_size_callback(self, window, width, height):
-        self.window_width = width
-        self.window_height = height
-        self.detached_impl.io.display_size = width, height
+            if is_hovered or self.resizing:
+                color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 1.0)  # Blue color
+            else:
+                color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 0.0)
 
-    def _window_refresh_callback(self, window):
-        self._detached()
+            if self.view_type == ViewType.DOCK_LEFT:
+                draw_list.add_line(window_pos[0] + window_size[0] - 5, window_pos[1],
+                                   window_pos[0] + window_size[0] - 5, window_pos[1] + window_size[1], color)
+            elif self.view_type == ViewType.DOCK_RIGHT:
+                draw_list.add_line(window_pos[0] + 1, window_pos[1], window_pos[0] + 1,
+                                   window_pos[1] + window_size[1],
+                                   color)
+            elif self.view_type == ViewType.DOCK_BOTTOM:
+                draw_list.add_line(window_pos[0], window_pos[1] + 1, window_pos[0] + window_size[0],
+                                   window_pos[1] + 1,
+                                   color)
 
-    def _activate_detached_context(self):
-        if not self.detached:
-            return
-
-        if self.detached_window is None:
-
-            self.detached_window = glfw.create_window(self.window_width,
-                                                      self.window_height,
-                                                      "Detached " + self.window_name,
-                                                      None,
-                                                      None)
-            glfw.make_context_current(self.detached_window)
-            self.context = imgui.create_context()
-            imgui.set_current_context(self.context)
-            self.detached_impl = GlfwRenderer(self.detached_window)
-            glfw.set_window_size_callback(self.detached_window, self._framebuffer_size_callback)
-            glfw.set_window_refresh_callback(self.detached_window, self._window_refresh_callback)
-
-        else:
-            glfw.make_context_current(self.detached_window)
-            imgui.set_current_context(self.context)
-
-    def _detached(self):
-
-        if self.detached_window is not None and not glfw.window_should_close(self.detached_window):
-            self.detached_impl.process_inputs()
-            imgui.new_frame()
-            imgui.set_next_window_position(0, 0, condition=imgui.ALWAYS)
-            imgui.set_next_window_size(self.window_width, self.window_height, condition=imgui.ALWAYS)
-            imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (0.0, 0.0))
-            imgui.begin(
-                self.window_name,
-                flags=imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE)
-            self.selected = imgui.is_window_focused()
-            self._detached_title_bar()
-            imgui.begin_child("##detached_content", border=False)
-            self._content()
-            imgui.end_child()
+            if self.view_type == ViewType.FLOATING:
+                w, h = imgui.get_window_size()
+                self.width = int(w)
+                self.height = int(h)
 
             imgui.end()
-            imgui.pop_style_var(1)  # This should match the number of push_style_var calls
-            imgui.render()
-            self.detached_impl.render(imgui.get_draw_data())
-            glfw.swap_buffers(self.detached_window)
-            glfw.poll_events()
-
-
-
-
-    def close(self):
-        if self.detached_window is not None and glfw.window_should_close(self.detached_window):
-            print("window closed")
-            self.detached_impl.shutdown()
-            glfw.destroy_window(self.detached_window)
-            self.detached_window = None
-            self.detached = False
+            imgui.pop_style_var(1)

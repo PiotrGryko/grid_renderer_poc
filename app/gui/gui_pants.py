@@ -24,12 +24,14 @@ class GuiPants:
         self.n_window = self.config.n_window
         self.color_theme = self.config.color_theme
 
-        self.top_menu = TopMenu(self.config)
         self.layers_view = LayersView(self.config)
         self.model_settings_page = DownloadManagerPage(self.config)
         self.terminal = ScienceBasedTerminal(self.config)
         self.bottom_info_bar = BottomInfoBar(self.config)
         self.neuron_popup = NeuronPopup(self.config)
+
+        self.top_menu = TopMenu(self.config, self.layers_view, self.terminal, self.model_settings_page)
+
         self.context = None
         self.large_font = None
 
@@ -86,9 +88,9 @@ class GuiPants:
     def render_scene_buttons(self):
         # Begin a new window with no title bar, no resize, no move, and no background
         imgui.set_next_window_position(imgui.get_io().display_size.x - 2 * 110, 10,
-                                       condition=imgui.ONCE)  # Adjust positioning as needed
+                                       condition=imgui.ALWAYS)  # Adjust positioning as needed
         imgui.set_next_window_size(2 * 110 + 20, 40,
-                                   condition=imgui.ONCE)  # Width for two buttons + spacing, and height for one button
+                                   condition=imgui.ALWAYS)  # Width for two buttons + spacing, and height for one button
 
         imgui.begin("scene buttons",
                     flags=imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_BACKGROUND | imgui.WINDOW_NO_SCROLLBAR)
@@ -161,6 +163,9 @@ class GuiPants:
     def render_fancy_pants(self):
 
         # imgui.set_current_context(self.context)
+        # glfw.make_context_current(self.n_window.window)
+        # imgui.set_current_context(self.context)
+
         self.impl.process_inputs()
 
         imgui.new_frame()
@@ -178,10 +183,14 @@ class GuiPants:
         # Rendering
         imgui.render()
         self.impl.render(imgui.get_draw_data())
-
-        self.layers_view.render_detached(self.context, self.n_window)
-        self.terminal.render_detached(self.context, self.n_window)
-        self.model_settings_page.render_detached(self.context, self.n_window)
+        #
+        # self.layers_view.render_detached(self.context, self.n_window)
+        # self.terminal.render_detached(self.context, self.n_window)
+        # self.model_settings_page.render_detached(self.context, self.n_window)
 
     def remove_gui(self):
         self.impl.shutdown()
+        self.layers_view.save_config()
+        self.terminal.save_config()
+        self.model_settings_page.save_config()
+        print("Gui saved!")

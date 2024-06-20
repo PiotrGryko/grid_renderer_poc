@@ -1,8 +1,6 @@
 import os
 import threading
 
-import numpy as np
-import torch
 from torch import nn
 
 
@@ -52,15 +50,23 @@ class ModelParser:
         self.model = None
         self.tokenizer = None
         self.parsed_model = None
-        self.hooks_registered = False
+        self.hooked_model_name = None
+        self.last_result = None
 
+    def clear(self):
+        self.model = None
+        self.tokenizer = None
+        self.parsed_model = None
+        self.hooked_model_name = None
         self.last_result = None
 
     def _register_hooks(self):
-        if self.hooks_registered:
+        print("register hooks")
+        if self.hooked_model_name == self.parsed_model.name:
+            print("register hooks skpped")
             return
         self.parsed_model.register_hooks(self.n_effects)
-        self.hooks_registered = True
+        self.hooked_model_name = self.parsed_model.name
 
     def _parse_module(self, module, name):
         if isinstance(module, nn.Embedding):

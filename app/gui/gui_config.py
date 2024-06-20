@@ -3,10 +3,6 @@ class GuiConfig:
         self.top_bar_height = 30
         self.bottom_bar_height = 30
 
-        self.show_model_settings = False
-        self.show_terminal_view = False
-        self.show_layers_view = False
-
         self.n_net = n_net
         self.n_window = n_window
         self.color_theme = color_theme

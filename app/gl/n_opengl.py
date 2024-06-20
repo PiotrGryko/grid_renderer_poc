@@ -30,34 +30,40 @@ class OpenGLApplication:
         self.viewport_width = self.buffer_width / 2
         self.viewport_height = self.buffer_height / 2
 
-        self.config = LittleConfig()
-        self.config.load_config()
+        self.app_config = LittleConfig()
+        self.app_config.load_config()
 
         self.n_window = NWindow()
+        self.n_window.update_size(
+            self.app_config.window_width,
+            self.app_config.window_height
+        )
+
         self.color_theme = NColorTheme()
+        self.color_theme.load_by_name(self.app_config.color_name)
+
         self.utils = FancyUtilsClass()
         self.download_manager = DownloadManager()
         self.n_net = NetWrapper(self.n_window, self.color_theme)
-
         self.camera_animation = CameraAnimation(self.n_window, self.n_net)
-
         self.n_viewport = NViewport(self.n_net, self.viewport_width, self.viewport_height)
+        self.n_effects = NEffects(self.n_net, self.n_window)
+        self.model_parser = ModelParser(self.n_effects)
 
         self.n_scene = NSceneV2(self.n_net,
                                 self.n_viewport,
                                 self.n_window,
                                 self.buffer_width,
                                 self.buffer_height)
-        self.n_effects = NEffects(self.n_net, self.n_window)
-
-        self.model_parser = ModelParser(self.n_effects)
+        self.n_scene.enable_blending = self.app_config.enable_blend
+        self.n_viewport.power_of_two = self.app_config.power_of_two
 
         self.gui_config = GuiConfig(
             self.n_net,
             self.n_window,
             self.color_theme,
             self.utils,
-            self.config,
+            self.app_config,
             self,
             self.download_manager,
             self.camera_animation,
@@ -141,7 +147,7 @@ class OpenGLApplication:
             self.n_window.mouse_scroll_callback(None, None, 0.1)
         if key == glfw.KEY_C:
             self.color_theme.next()
-            self.config.color_name = self.color_theme.name
+            self.app_config.color_name = self.color_theme.name
 
     def on_viewport_updated(self):
         viewport = self.n_window.viewport_to_world_cords()
@@ -150,13 +156,13 @@ class OpenGLApplication:
         if self.n_viewport.visible_data is not None:
             self.n_net.update_visible_layers(self.n_viewport.visible_data)
 
-    def reload_config(self):
-        self.config.save_config()
-        self.color_theme.load_by_name(self.config.color_name)
+    def reload_graphics_settings(self):
+        self.app_config.save_config()
+        self.color_theme.load_by_name(self.app_config.color_name)
 
-        if self.config.buffer_width != self.buffer_width or self.config.buffer_height != self.buffer_height:
-            self.buffer_width = self.config.buffer_width
-            self.buffer_height = self.config.buffer_height
+        if self.app_config.buffer_width != self.buffer_width or self.app_config.buffer_height != self.buffer_height:
+            self.buffer_width = self.app_config.buffer_width
+            self.buffer_height = self.app_config.buffer_height
             self.viewport_width = self.buffer_width / 2
             self.viewport_height = self.buffer_height / 2
 
@@ -170,8 +176,25 @@ class OpenGLApplication:
             self.n_viewport.viewport_w = self.viewport_width
             self.n_viewport.viewport_h = self.viewport_height
 
-        self.n_scene.enable_blending = self.config.enable_blend
-        self.n_viewport.power_of_two = self.config.power_of_two
+        self.n_scene.enable_blending = self.app_config.enable_blend
+        self.n_viewport.power_of_two = self.app_config.power_of_two
+
+    def reload_view(self):
+        # update tree size and depth using grid size
+        self.n_viewport.set_grid_size(self.n_net.total_width, self.n_net.total_height)
+        # calculate min zoom using grid size
+        self.n_window.calculate_min_zoom(self.n_net)
+        # start render loop
+        self.n_window.reset_to_center(self.n_net)
+
+        self.n_scene.force_update = True
+
+    def clear(self):
+        self.app_config.model_directory = None
+        self.app_config.save_config()
+        # self.model_parser.clear()
+        self.n_net.clear()
+        self.load_model()
 
     def load_model(self,
                    model=None,
@@ -187,10 +210,10 @@ class OpenGLApplication:
 
             model = AutoModelForCausalLM.from_pretrained(model_directory, local_files_only=True)
             self.n_net.weights_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
-            self.config.model_directory = model_directory
-            self.config.save_config()
-        elif self.config.model_directory is not None and os.path.exists(self.config.model_directory):
-            model = AutoModelForCausalLM.from_pretrained(self.config.model_directory, local_files_only=True)
+            self.app_config.model_directory = model_directory
+            self.app_config.save_config()
+        elif self.app_config.model_directory is not None and os.path.exists(self.app_config.model_directory):
+            model = AutoModelForCausalLM.from_pretrained(self.app_config.model_directory, local_files_only=True)
             self.n_net.weights_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
         if model is None:
             print("No model to load!", "Showing welcome message")
@@ -199,20 +222,13 @@ class OpenGLApplication:
             self.n_net.weights_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
 
         if model is not None:
-            index = 0
             tokenizer = AutoTokenizer.from_pretrained(model.name_or_path, local_files_only=True)
             self.model_parser.load_hg_model(model, tokenizer)
-            # parser.register_hooks()
-            # parser.perform_forward_pass("Hi?")
             self.n_net.neurons_net.init_from_model_parser(self.model_parser)
-            # ModelParser().extract_layers_info(model.named_parameters())
-            # for name, t in model.named_parameters():
-            #     print(index, "name", name, "shape", t.shape)
-            #     index += 1
-            self.config.model_name = model.name_or_path
+            self.app_config.model_name = model.name_or_path
         else:
-            self.config.model_name = None
-        self.config.save_config()
+            self.app_config.model_name = None
+        self.app_config.save_config()
 
         self.n_scene.destroy()
         self.n_scene = None
@@ -224,20 +240,12 @@ class OpenGLApplication:
         self.utils.print_memory_usage()
         self.reload_view()
 
-    def reload_view(self):
-        # update tree size and depth using grid size
-        self.n_viewport.set_grid_size(self.n_net.total_width, self.n_net.total_height)
-        # calculate min zoom using grid size
-        self.n_window.calculate_min_zoom(self.n_net)
-        # start render loop
-        self.n_window.reset_to_center(self.n_net)
-
     def start(self,
               model=None,
               model_directory=None,
               save_mem_file=False,
               load_mem_file=False):
-        self.reload_config()
+        # self.reload_config()
         self.n_window.create_window()
         # self.n_window.set_callbacks()
 
@@ -267,10 +275,12 @@ class OpenGLApplication:
         # self.n_effects.init()
         print("Main loop")
         self.n_window.start_main_loop()
-        glfw.terminate()
 
+        glfw.terminate()
         gl.glDeleteProgram(self.n_window.n_color_map_v2_texture_shader.shader_program)
         gl.glDeleteProgram(self.n_window.n_billboards_from_texture_shader.shader_program)
         gl.glDeleteProgram(self.n_window.n_effects_shader.shader_program)
 
+        self.app_config.window_width = self.n_window.width
+        self.app_config.window_height = self.n_window.height
         self.gui.remove_gui()

@@ -16,11 +16,23 @@ class NetWrapper:
 
         self.show_weights = True
 
+    def clear(self):
+        self.show_weights = True
+        self.weights_net.clear()
+        self.neurons_net.clear()
+
     def set_weights_net_active(self):
         self.show_weights = True
 
     def set_neurons_net_active(self):
         self.show_weights = False
+
+    @property
+    def loaded_data_id(self):
+        if self.show_weights:
+            return self.weights_net.loaded_data_id
+        else:
+            return self.neurons_net.loaded_data_id
 
     @property
     def total_width(self):
@@ -36,12 +48,6 @@ class NetWrapper:
         else:
             return self.neurons_net.total_height
 
-    @property
-    def layers_tree(self):
-        if self.show_weights:
-            return self.weights_net.layers_tree
-        else:
-            return self.neurons_net.layers_tree
     @property
     def layers(self):
         if self.show_weights:
@@ -72,7 +78,6 @@ class NNet:
     def __init__(self, n_window, color_theme):
         self.n_window = n_window
         self.color_theme = color_theme
-        self.layers_tree = None
         self.layers = []
         self.layers_names = []
         self.grid_columns_count = 0
@@ -83,11 +88,27 @@ class NNet:
         self.grid = create_grid()
         self.visible_layers = []
 
+        # Unique for each load
+        self.loaded_data_id = None
+
+    def clear(self):
+        self.layers = []
+        self.layers_names = []
+        self.grid_columns_count = 0
+        self.grid_rows_count = 0
+        self.total_width = 0
+        self.total_height = 0
+        self.total_size = 0
+        self.visible_layers = []
+        self.loaded_data_id = None
+
+
     def init_from_model_parser(self, model_parser):
         print("Init net from activations parser")
         layers = []
         names = []
         components = []
+
         def parse_component(component, start=True):
             if component.shape is not None:
                 s = component.shape
@@ -102,7 +123,7 @@ class NNet:
         parse_component(model_parser.parsed_model)
         self.create_layers(layers, names)
         self.init_grid()
-        self.layers_tree = model_parser.parsed_model
+        self.loaded_data_id = model_parser.parsed_model.name
 
     def init_from_size(self, all_layers_sizes):
         print("Init net from sizes")
@@ -120,6 +141,7 @@ class NNet:
         print("Creating layers")
         self.create_layers(layers, names)
         self.init_grid()
+        self.loaded_data_id = f"init_from_size_{time.time()}"
 
     def init_from_np_arrays(self, all_layers, names):
         print("Init net from np arrays")
@@ -133,6 +155,7 @@ class NNet:
         print("Creating layers")
         self.create_layers(layers, names)
         self.init_grid()
+        self.loaded_data_id = f"init_from_np_arrays_{time.time()}"
 
     def init_from_last_memory_files(self):
         layers = []
@@ -161,6 +184,7 @@ class NNet:
                 names.append(file_name)
         self.create_layers(layers, names)
         self.init_grid()
+        self.loaded_data_id = f"init_from_last_memory_files_{time.time()}"
 
     def init_from_tensors(self, names_parameters, save_to_memfile=False):
         print("Init net from tensors")
@@ -198,6 +222,7 @@ class NNet:
         print("")
         self.create_layers(layers, names)
         self.init_grid()
+        self.loaded_data_id = f"init_from_tensors_{time.time()}"
 
     def create_layers(self, all_layers, all_names):
         start_time = time.time()
@@ -238,8 +263,6 @@ class NNet:
         print("Net initialized", time.time() - start_time, "s",
               "total size: ", self.total_size
               )
-
-
 
     def update_visible_layers(self, bounds):
         col_min = bounds.x1

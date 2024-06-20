@@ -37,7 +37,7 @@ class BufferContainer:
 
 class ScienceBasedTerminal(Widget):
     def __init__(self, config):
-        super().__init__("Terminal")
+        super().__init__("Terminal", config)
         self.config = config
         self.python_buffer = BufferContainer()
         self.model_buffer = BufferContainer()
@@ -88,8 +88,8 @@ class ScienceBasedTerminal(Widget):
 
     def attach_media_button(self):
         # Set cursor position with padding for the attach media button
-        imgui.begin_child("buttonattach", width=45, height=100, border=False)
-        imgui.set_cursor_position((10, 90 - 25))
+        imgui.begin_child("buttonattach", width=45, height=50, border=False)
+        imgui.set_cursor_position((10, 40 - 25))
         if imgui.button("📎", width=25, height=25):
             print("Attach media button pressed")
         # Reset cursor position to after the button
@@ -97,8 +97,8 @@ class ScienceBasedTerminal(Widget):
 
     def send_button(self):
         # Set cursor position with padding for the send button
-        imgui.begin_child("sendbutton", width=70, height=100, border=False)
-        imgui.set_cursor_position((10, 90 - 25))
+        imgui.begin_child("sendbutton", width=70, height=50, border=False)
+        imgui.set_cursor_position((10, 40 - 25))
         if imgui.button("Send", width=50, height=25):
             print("Send button pressed")
         imgui.end_child()
@@ -129,7 +129,7 @@ class ScienceBasedTerminal(Widget):
 
     def input_box(self):
         width = imgui.get_content_region_available_width() - 70
-        height = 100
+        height = 50
 
         def input_callback(data):
             if self.last_length != data.buffer_text_length and not self.inserted:
@@ -186,7 +186,7 @@ class ScienceBasedTerminal(Widget):
 
     def _content(self):
 
-        input_height = 100
+        input_height = 50
         button_height = 50
         padding = 10
         available_height = imgui.get_content_region_available()[1] - (input_height + button_height + 2 * padding)
@@ -194,11 +194,13 @@ class ScienceBasedTerminal(Widget):
 
         self.type_buttons()
 
-        imgui.begin_child("##conent")
+        imgui.begin_child("##content")
         imgui.set_cursor_pos((padding, padding))
         imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (10, 10))
         imgui.begin_child("OutputField", width=available_width, height=available_height, border=True)
         imgui.text_wrapped(self.buffer.output)
+        imgui.set_scroll_here_y(1.0)
+
         imgui.end_child()
         imgui.pop_style_var(1)
         imgui.set_cursor_pos_y(imgui.get_cursor_pos_y() + padding)

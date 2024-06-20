@@ -36,7 +36,6 @@ class NWindow:
         self.n_color_map_v2_texture_shader = NShader()
         self.n_effects_shader = NShader()
 
-
     def calculate_min_zoom(self, n_net):
         content_width, content_height = n_net.total_width, n_net.total_height
         w, h = self.window_to_viewport_cords(self.width, self.height)
@@ -218,11 +217,15 @@ class NWindow:
             self.render_func()
 
     def frame_buffer_size_callback(self, window, w, h):
+        self.update_size(w,h)
+        self.on_viewport_updated()
+
+    def update_size(self, w, h):
         self.width, self.height = w, h
         self.aspect_ratio = w / h
         self.projection.set_aspect_ratio(self.aspect_ratio)
         print('resize', self.width, self.height)
-        self.on_viewport_updated()
+
 
     def zoom_to_point(self, zoom_x, zoom_y, new_zoom):
         self.zoom_factor = new_zoom

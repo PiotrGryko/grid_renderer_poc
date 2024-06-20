@@ -12,7 +12,7 @@ from app.gui.widget import Widget
 
 class DownloadManagerPage(Widget):
     def __init__(self, config):
-        super().__init__("Download Manager")
+        super().__init__("Download Manager", config)
         self.config = config
         self.api = HfApi()
         self.models = []
