@@ -1,16 +1,18 @@
 import threading
-from huggingface_hub import hf_hub_download, HfApi
 
+from huggingface_hub import HfApi
 from transformers import (
-    AutoModelForCausalLM, AutoModelForSequenceClassification, AutoModelForImageClassification,
-    AutoModelForTokenClassification,
-    AutoModelForQuestionAnswering, AutoModelForSeq2SeqLM, AutoModelForMaskedLM, AutoModelForVision2Seq,
-    AutoModelForImageSegmentation,
-    AutoModelForSpeechSeq2Seq, AutoModelForAudioClassification, AutoModelForMultipleChoice,
-    AutoModelForNextSentencePrediction,
-    AutoModelForVideoClassification, AutoModelForDocumentQuestionAnswering, AutoModelForTableQuestionAnswering,
-    BlipForConditionalGeneration, Speech2TextForConditionalGeneration, VisionEncoderDecoderModel, AutoTokenizer
+    AutoTokenizer, AutoImageProcessor, AutoFeatureExtractor, AutoModel
 )
+
+from app.ai.task_mapping import get_model_class_from_path
+
+
+class DownloadStatus:
+    def __init__(self, message, completed, model_directory=None):
+        self.message = message
+        self.completed = completed
+        self.model_directory = model_directory
 
 
 class DownloadManager:
@@ -19,62 +21,97 @@ class DownloadManager:
         self.download_status = {}
         self.api = HfApi()
 
-        self.MODEL_CLASS_MAPPING = {
-            "text-generation": AutoModelForCausalLM,
-            "text-classification": AutoModelForSequenceClassification,
-            "image-classification": AutoModelForImageClassification,
-            "token-classification": AutoModelForTokenClassification,
-            "question-answering": AutoModelForQuestionAnswering,
-            "translation": AutoModelForSeq2SeqLM,
-            "summarization": AutoModelForSeq2SeqLM,
-            "fill-mask": AutoModelForMaskedLM,
-            "vision-to-text": AutoModelForVision2Seq,
-            "image-segmentation": AutoModelForImageSegmentation,
-            "speech-seq2seq": AutoModelForSpeechSeq2Seq,
-            "audio-classification": AutoModelForAudioClassification,
-            "multiple-choice": AutoModelForMultipleChoice,
-            "next-sentence-prediction": AutoModelForNextSentencePrediction,
-            "video-classification": AutoModelForVideoClassification,
-            "document-question-answering": AutoModelForDocumentQuestionAnswering,
-            "table-question-answering": AutoModelForTableQuestionAnswering,
-            "text-to-image": BlipForConditionalGeneration,
-            "image-to-text": VisionEncoderDecoderModel,
-            "image-to-speech": Speech2TextForConditionalGeneration
-        }
+    # def get_model_class(self, model_id):
+    #     model_info = self.api.model_info(model_id)
+    #     task = model_info.pipeline_tag
+    #     print("Get class from task", task)
+    #
+    #     task_class = TASK_TO_CLASS.get(task, AutoModelForCausalLM)
+    #     print(f"Model ID: {model_id}")
+    #     print(f"Detected Task: {task}")
+    #     print(f"Task class: {task_class}")
+    #     return task_class
 
-    def get_model_class(self, model_id):
-        model_info = self.api.model_info(model_id)
-        task = model_info.pipeline_tag
-        print(f"Model ID: {model_id}")
-        print(f"Detected Task: {task}")
-        return self.MODEL_CLASS_MAPPING.get(task, AutoModelForCausalLM)
-
-    def download_model(self, model_id, path):
+    def download_model(self, model_info, path):
+        model_id = model_info.modelId
         if model_id in self.download_threads:
             print(f"Download for {model_id} is already in progress.")
             return
 
-        self.download_status[model_id] = "Downloading"
-        thread = threading.Thread(target=self._download_model_thread, args=(model_id, path))
+        self.download_status[model_id] = DownloadStatus(
+            "Downloading",
+            False
+        )
+        thread = threading.Thread(target=self._download_model_thread, args=(model_info, path))
         self.download_threads[model_id] = thread
         thread.start()
 
-    def _download_model_thread(self, model_id, path):
-        print("download model thread ", model_id, path)
+    def _download_model_thread(self, model_info, path):
+        model_id = model_info.modelId
+        library_name = model_info.library_name
+        model = None
+        print("download model thread ", model_id, path, "library:", library_name)
         try:
-            model_class = self.get_model_class(model_id)
-            model = model_class.from_pretrained(model_id, local_files_only=False)
-            tokenizer = AutoTokenizer.from_pretrained(model_id, local_files_only=False)
-            model.save_pretrained(path)
-            tokenizer.save_pretrained(path)
-            self.download_status[model_id] = "Completed"
+            if library_name == "transformers":
+                try:
+                    #model_class = self.get_model_class(model_id)
+                    model_class = get_model_class_from_path(model_id)
+                    #model_class = AutoModel
+                    print("Downloading model", model_class)
+                    model = model_class.from_pretrained(model_id, local_files_only=False)
+                    print("Saving model")
+                    model.save_pretrained(path)
+                except Exception as e:
+                    raise e
+                try:
+                    print("Downloading tokenizer", model_class)
+                    tokenizer = AutoTokenizer.from_pretrained(model_id, local_files_only=False)
+                    print("Saving tokenizer")
+                    tokenizer.save_pretrained(path)
+                    print("Saved tokenizer")
+                except Exception as e:
+                    print("tokenizer Exception", e)
+
+                try:
+                    print("Downloading image processor", model_class)
+                    image_processor = AutoImageProcessor.from_pretrained(model_id, local_files_only=False)
+                    print("Saving image processor")
+                    image_processor.save_pretrained(path)
+                    print("Saved image processor")
+                except Exception as e:
+                    print("image processor Exception", e)
+
+                try:
+                    print("Downloading feature extractor", model_class)
+                    image_processor = AutoFeatureExtractor.from_pretrained(model_id, local_files_only=False)
+                    print("Saving feature extractor")
+                    image_processor.save_pretrained(path)
+                    print("Saved feature extractor")
+                except Exception as e:
+                    print("feature extractor Exception", e)
+
+                print("Completed")
+                self.download_status[model_id] = DownloadStatus(
+                    "Completed",
+                    True,
+                    model_directory=path
+                )
+            else:
+                raise f"Unsupported model library {library_name}"
         except Exception as e:
-            self.download_status[model_id] = f"Error: {str(e)}"
+            print("Exception:", e)
+            self.download_status[model_id] = DownloadStatus(
+                f"Error: {str(e)}",
+                False
+            )
         finally:
             del self.download_threads[model_id]
 
     def get_download_status(self, model_id):
-        return self.download_status.get(model_id, "Not started")
+        return self.download_status.get(model_id, DownloadStatus(
+            "Not started",
+            False
+        ))
 
     def get_all_download_statuses(self):
         return self.download_status

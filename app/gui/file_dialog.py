@@ -2,6 +2,8 @@ import os
 
 import imgui
 
+from app.ai.task_mapping import get_model_pipeline_task_from_path
+
 
 class FileDialog:
     def __init__(self, config):
@@ -9,8 +11,11 @@ class FileDialog:
         self.new_dir_name = ""
         self.config = config
 
-        self.current_path = os.path.expanduser("~") if self.config.last_directory is None else self.config.last_directory
+        self.current_path = os.path.expanduser(
+            "~") if self.config.last_directory is None else self.config.last_directory
         self.selected_path = None
+
+        self.task_for_path = {}
 
     def open(self):
         print("open dialog")
@@ -32,8 +37,7 @@ class FileDialog:
             imgui.same_line()
             if imgui.button("Select"):
                 self.selected_path = self.current_path
-                self.config.last_directory = self.selected_path
-                self.config.save_config()
+                self.config.set_last_directory(self.selected_path)
                 self.opened = False
 
             imgui.push_item_width(200)  # Set the width of the input text field
@@ -56,7 +60,12 @@ class FileDialog:
                     continue
                 item_path = os.path.join(path, item)
                 if os.path.isdir(item_path):
-                    opened, selected = imgui.selectable(f"[DIR] {item}")
+                    if item_path in self.task_for_path:
+                        task = self.task_for_path[item_path]
+                    else:
+                        task = get_model_pipeline_task_from_path(item_path)
+                        self.task_for_path[item_path] = task
+                    opened, selected = imgui.selectable(f"[DIR] {item} ({task.value})")
                     if opened:
                         self.current_path = item_path
         except Exception as e:

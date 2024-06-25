@@ -14,6 +14,7 @@ class Widget:
     def __init__(self, name, gui_config):
         self.gui_config = gui_config
         self.window_name = name
+        self.config_id = self.window_name
         self.view_type = ViewType.FLOATING
         self.context = None
         self.opened = True
@@ -25,6 +26,12 @@ class Widget:
 
         self.load_from_config()
 
+    def on_config_save(self, config):
+        pass
+
+    def on_config_load(self, config):
+        pass
+
     def save_config(self):
         widget_config = {
             'opened': self.opened,
@@ -32,17 +39,18 @@ class Widget:
             'height': self.height,
             'view_type': self.view_type.value
         }
-        self.gui_config.app_config.gui_state_config[self.window_name] = widget_config
+        self.on_config_save(widget_config)
+        self.gui_config.app_config.gui_state_config[self.config_id] = widget_config
         self.gui_config.app_config.save_config()
 
     def load_from_config(self):
-        widget_config = self.gui_config.app_config.gui_state_config.get(self.window_name)
-        print("Load from config",self.window_name, widget_config)
+        widget_config = self.gui_config.app_config.gui_state_config.get(self.config_id)
         if widget_config:
             self.opened = widget_config['opened']
             self.width = widget_config['width']
             self.height = widget_config['height']
             self.view_type = ViewType(widget_config['view_type'])
+            self.on_config_load(widget_config)
 
     # Override this to render custom content
     def _content(self):
@@ -109,6 +117,7 @@ class Widget:
     def render(self):
         bottom_bar = 30
         top_bar = 18
+        scene_buttons = 20
         if self.opened:
             if self.view_type == ViewType.FLOATING:
                 pass
@@ -116,8 +125,8 @@ class Widget:
                 imgui.set_next_window_size(self.width, imgui.get_io().display_size[1] - top_bar - bottom_bar)
                 imgui.set_next_window_position(0, top_bar)
             elif self.view_type == ViewType.DOCK_RIGHT:
-                imgui.set_next_window_size(self.width, imgui.get_io().display_size[1] - top_bar - bottom_bar)
-                imgui.set_next_window_position(imgui.get_io().display_size[0] - self.width, top_bar)
+                imgui.set_next_window_size(self.width, imgui.get_io().display_size[1] - top_bar - bottom_bar- scene_buttons)
+                imgui.set_next_window_position(imgui.get_io().display_size[0] - self.width, top_bar + scene_buttons)
             elif self.view_type == ViewType.DOCK_BOTTOM:
                 imgui.set_next_window_size(imgui.get_io().display_size[0], self.height)
                 imgui.set_next_window_position(0, imgui.get_io().display_size[1] - self.height - bottom_bar)

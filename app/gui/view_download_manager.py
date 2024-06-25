@@ -4,8 +4,12 @@ import threading
 import time
 
 import imgui
+import requests
+import transformers
 from huggingface_hub import HfApi, ModelFilter
+from transformers import AutoConfig
 
+from app.ai.task_mapping import get_model_class_from_config, SUPPORTED_PIPELINES
 from app.gui.file_dialog import FileDialog
 from app.gui.widget import Widget
 
@@ -23,12 +27,7 @@ class DownloadManagerPage(Widget):
         self.loaded = False
         self.file_dialog = FileDialog(config.app_config)
         self.download_manager = config.download_manager
-
-    def _on_visibility_changed(self):
-        self.config.show_model_settings = self.opened
-
-    def _update_visibility(self):
-        self.opened = self.config.show_model_settings
+        self.selected_model_size = None
 
     def start_loading_models(self):
 
@@ -71,7 +70,7 @@ class DownloadManagerPage(Widget):
 
         window_width, window_height = imgui.get_content_region_available()
         left_column_width = window_width * 0.5
-        right_column_width = window_width * 0.5  - 20
+        right_column_width = window_width * 0.5 - 20
         column_height = window_height
 
         # Left column: Search bar and model list
@@ -87,13 +86,21 @@ class DownloadManagerPage(Widget):
             self.render_spinner((spinner_pos[0] + 10, spinner_pos[1] + 10), radius=8, thickness=2)
             imgui.new_line()
 
-        if imgui.begin_list_box("##models_list", width=left_column_width-20, height=column_height):
+        if imgui.begin_list_box("##models_list", width=left_column_width - 20, height=column_height):
             for model in self.models:
+                supported = model.pipeline_tag in SUPPORTED_PIPELINES
+
                 is_selected = (model == self.selected_model)
-                opened, clicked = imgui.selectable(model.modelId, width=left_column_width-50, selected=is_selected)
+                if supported:
+                    imgui.push_style_color(imgui.COLOR_TEXT, 0, 1, 0)
+                opened, clicked = imgui.selectable(f"{model.modelId} ({model.pipeline_tag})",
+                                                   width=left_column_width - 50, selected=is_selected)
+                if supported:
+                    imgui.pop_style_color()
                 if clicked and not is_selected:
                     print("model clicked")
                     self.selected_model = model
+                    print(model.pipeline_tag, (model.pipeline_tag in SUPPORTED_PIPELINES))
             imgui.end_list_box()
 
         imgui.end_child()
@@ -114,9 +121,11 @@ class DownloadManagerPage(Widget):
             imgui.text_wrapped(f"Private: {model_info.private}")
             imgui.text_wrapped(f"Gated: {model_info.gated}")
             imgui.text_wrapped(f"Downloads: {model_info.downloads}")
+            if self.selected_model_size:
+                imgui.text_wrapped(f"Size: {self.selected_model_size / (1024 ** 2):.2f} MB")
             imgui.text_wrapped(f"Likes: {model_info.likes}")
             imgui.text_wrapped(f"Library Name: {model_info.library_name}")
-            imgui.text_wrapped(f"Pipeline Tag: {model_info.pipeline_tag}")
+            imgui.text_colored(f"Pipeline Tag: {model_info.pipeline_tag}", 1.0, 0.0, 0.0, 1.0)
 
             # Display tags as a single wrapped string
             tags_string = ", ".join(model_info.tags)
@@ -133,7 +142,11 @@ class DownloadManagerPage(Widget):
 
             imgui.separator()
             status = self.download_manager.get_download_status(model_info.modelId)
-            imgui.text_wrapped(f"Download status: {status}")
+            imgui.text_wrapped(f"Download status: {status.message}")
+            if status.completed:
+                if imgui.button("Open downloaded model"):
+                    print("Open model")
+                    self.config.app.load_model(model_directory=status.model_directory)
 
             imgui.separator()
             imgui.text("Download Model")
@@ -146,9 +159,9 @@ class DownloadManagerPage(Widget):
             imgui.same_line()
             imgui.text_wrapped(f"Path: {self.file_dialog.selected_path}")
             self.file_dialog.render()
-
-            if imgui.button("Download"):
-                updated_path = self.file_dialog.selected_path + "/" + self.selected_model.modelId.replace("/", "_")
-                self.download_manager.download_model(self.selected_model.modelId, updated_path)
+            if self.file_dialog.selected_path is not None:
+                if imgui.button("Download"):
+                    updated_path = self.file_dialog.selected_path + "/" + self.selected_model.modelId.replace("/", "_")
+                    self.download_manager.download_model(self.selected_model, updated_path)
 
         imgui.end_child()

@@ -5,11 +5,10 @@ import imgui
 from imgui.integrations.glfw import GlfwRenderer
 
 from app.gui.view_bottom_info_bar import BottomInfoBar
-from app.gui.gui_config import GuiConfig
 from app.gui.view_layers import LayersView
 from app.gui.view_download_manager import DownloadManagerPage
 from app.gui.view_neuron_popup import NeuronPopup
-from app.gui.view_terminal import ScienceBasedTerminal
+from app.gui.terminal.view_terminal import ScienceBasedTerminal
 from app.gui.view_top_menu import TopMenu
 
 
@@ -80,10 +79,16 @@ class GuiPants:
                 # Reset dragging state
                 self.n_window.cancel_drag()
 
+        def drop_callback(window, paths):
+            for path in paths:
+                print(f"File dropped: {path}")
+                self.terminal.on_file_dropped(path)
+
         glfw.set_mouse_button_callback(self.n_window.window, mouse_input_wrapper)
         glfw.set_key_callback(self.n_window.window, key_callback_wrapper)
         glfw.set_char_callback(self.n_window.window, char_callback_wrapper)
         glfw.set_scroll_callback(self.n_window.window, mouse_scroll_callback_wrapper)
+        glfw.set_drop_callback(self.n_window.window, drop_callback)
 
     def render_scene_buttons(self):
         # Begin a new window with no title bar, no resize, no move, and no background
@@ -99,11 +104,13 @@ class GuiPants:
         if imgui.button("Parameters", 100):
             print("Weights button clicked")
             self.config.n_net.set_weights_net_active()
+            self.config.app_config.set_show_weights(True)
             self.config.app.reload_view()
         imgui.same_line()
         if imgui.button("Modules", 100):
             print("Neurons button clicked")
             self.config.n_net.set_neurons_net_active()
+            self.config.app_config.set_show_weights(False)
             self.config.app.reload_view()
 
         # End the window
@@ -130,7 +137,7 @@ class GuiPants:
                     flags=imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_RESIZE)
         r, g, b, a = self.color_theme.color_high
         imgui.push_style_color(imgui.COLOR_TEXT, r, g, b, a)  # Red color
-        imgui.text(f"{self.config.app_config.model_name}")
+        imgui.text(f"{self.config.model_parser.current_model_name}")
         imgui.text(f"FPS: {self.fps:.2f}")
         imgui.text(f"Color: {self.color_theme.name}")
         imgui.text(f"Buffer: {self.config.app_config.buffer_width}x{self.config.app_config.buffer_height}")

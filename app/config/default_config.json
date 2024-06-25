@@ -1,0 +1,32 @@
+{
+    "color_name": "cubehelix_r",
+    "buffer_width": 1500,
+    "buffer_height": 1500,
+    "enable_blend": true,
+    "power_of_two": true,
+    "last_directory": null,
+    "model_directory": null,
+    "gui_state_config": {
+        "Layers": {
+            "opened": true,
+            "width": 250,
+            "height": 1387.0,
+            "view_type": 1
+        },
+        "Terminal": {
+            "opened": true,
+            "width": 1280.0,
+            "height": 336,
+            "view_type": 3,
+            "type": 1
+        },
+        "Download Manager": {
+            "opened": false,
+            "width": 969,
+            "height": 934,
+            "view_type": 0
+        }
+    },
+    "window_width": 1280,
+    "window_height": 1280
+}

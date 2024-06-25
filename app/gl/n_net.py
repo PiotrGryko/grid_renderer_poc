@@ -10,11 +10,11 @@ from app.grid.n_grid import create_grid, create_layer
 
 
 class NetWrapper:
-    def __init__(self, n_window, color_theme):
+    def __init__(self, n_window, color_theme, show_weights = True):
         self.weights_net = NNet(n_window, color_theme)
         self.neurons_net = NNet(n_window, color_theme)
 
-        self.show_weights = True
+        self.show_weights = show_weights
 
     def clear(self):
         self.show_weights = True
@@ -230,6 +230,8 @@ class NNet:
         print("Creating layers", len(all_layers))
         for index, layer_data in enumerate(all_layers):
             name = all_names[index]
+            if len(layer_data.shape)==0:
+                layer_data = np.array([1])
             grid_layer = create_layer(layer_data, name)
             self.layers.append(grid_layer)
         print(f"Layers created", time.time() - start_time, "s")

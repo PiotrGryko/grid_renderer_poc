@@ -3,20 +3,20 @@ import os.path
 import OpenGL.GL as gl
 import glfw
 from OpenGL.GL import *
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from app.ai.model_parser import ModelParser
 from app.config.app_config import LittleConfig
 from app.gl.c_color_theme import NColorTheme
 from app.gl.n_camera import CameraAnimation
 from app.gl.n_effects import NEffects
-from app.gl.n_net import NNet, NetWrapper
+from app.gl.n_net import NetWrapper
 from app.gl.n_scene_v2 import NSceneV2
 from app.gl.n_viewport import NViewport
 from app.gl.n_window import NWindow
 from app.config.download_manager import DownloadManager
 from app.gui.gui_config import GuiConfig
 from app.gui.gui_pants import GuiPants
+from app.gui.managers.image_loader import ImageLoader
 from app.utils import FancyUtilsClass
 
 
@@ -44,7 +44,9 @@ class OpenGLApplication:
 
         self.utils = FancyUtilsClass()
         self.download_manager = DownloadManager()
-        self.n_net = NetWrapper(self.n_window, self.color_theme)
+
+        self.n_net = NetWrapper(self.n_window, self.color_theme, self.app_config.show_weights)
+
         self.camera_animation = CameraAnimation(self.n_window, self.n_net)
         self.n_viewport = NViewport(self.n_net, self.viewport_width, self.viewport_height)
         self.n_effects = NEffects(self.n_net, self.n_window)
@@ -58,6 +60,7 @@ class OpenGLApplication:
         self.n_scene.enable_blending = self.app_config.enable_blend
         self.n_viewport.power_of_two = self.app_config.power_of_two
 
+        self.image_laoder = ImageLoader()
         self.gui_config = GuiConfig(
             self.n_net,
             self.n_window,
@@ -68,7 +71,8 @@ class OpenGLApplication:
             self.download_manager,
             self.camera_animation,
             self.n_effects,
-            self.model_parser)
+            self.model_parser,
+            self.image_laoder)
 
         self.gui = GuiPants(self.gui_config)
 
@@ -115,7 +119,6 @@ class OpenGLApplication:
         self.n_effects.draw(self.n_window.n_effects_shader)
         self.gui.render_fancy_pants()
         self.camera_animation.update_animation()
-
         glfw.swap_buffers(self.n_window.window)
         self.utils.print_memory_usage()
 
@@ -157,7 +160,6 @@ class OpenGLApplication:
             self.n_net.update_visible_layers(self.n_viewport.visible_data)
 
     def reload_graphics_settings(self):
-        self.app_config.save_config()
         self.color_theme.load_by_name(self.app_config.color_name)
 
         if self.app_config.buffer_width != self.buffer_width or self.app_config.buffer_height != self.buffer_height:
@@ -201,33 +203,34 @@ class OpenGLApplication:
                    model_directory=None,
                    save_mem_file=False,
                    load_mem_file=False):
+        print("Load model", "Model=", model, "Model directory=", model_directory)
+        if model is None and model_directory is None and self.app_config.model_directory is not None and os.path.exists(
+                self.app_config.model_directory):
+            model_directory = self.app_config.model_directory
 
         if load_mem_file:
             self.n_net.weights_net.init_from_last_memory_files()
         elif model is not None:
-            self.n_net.weights_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
+            self.model_parser.set_model(model)
+            self.n_net.weights_net.init_from_tensors(
+                self.model_parser.named_parameters(),
+                save_to_memfile=save_mem_file)
         elif model_directory is not None and os.path.exists(model_directory):
-
-            model = AutoModelForCausalLM.from_pretrained(model_directory, local_files_only=True)
-            self.n_net.weights_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
+            self.model_parser.load_model_from_path(model_directory)
+            self.model_parser.load_tokenizer_from_path(model_directory)
+            self.model_parser.load_image_processor_from_path(model_directory)
+            self.model_parser.load_feature_extractor_from_path(model_directory)
             self.app_config.model_directory = model_directory
-            self.app_config.save_config()
-        elif self.app_config.model_directory is not None and os.path.exists(self.app_config.model_directory):
-            model = AutoModelForCausalLM.from_pretrained(self.app_config.model_directory, local_files_only=True)
-            self.n_net.weights_net.init_from_tensors(list(model.named_parameters()), save_to_memfile=save_mem_file)
-        if model is None:
+            self.n_net.weights_net.init_from_tensors(self.model_parser.named_parameters(),
+                                                     save_to_memfile=save_mem_file)
+        if self.model_parser.model is None:
             print("No model to load!", "Showing welcome message")
-            # welcome_message = self.utils.create_welcome_message()
             welcome_message = self.utils.create_logo_message()
             self.n_net.weights_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
-
-        if model is not None:
-            tokenizer = AutoTokenizer.from_pretrained(model.name_or_path, local_files_only=True)
-            self.model_parser.load_hg_model(model, tokenizer)
-            self.n_net.neurons_net.init_from_model_parser(self.model_parser)
-            self.app_config.model_name = model.name_or_path
         else:
-            self.app_config.model_name = None
+            self.model_parser.parse_loaded_model()
+            self.n_net.neurons_net.init_from_model_parser(self.model_parser)
+
         self.app_config.save_config()
 
         self.n_scene.destroy()

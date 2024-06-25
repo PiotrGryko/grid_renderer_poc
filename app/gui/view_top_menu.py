@@ -21,7 +21,7 @@ class TopMenu:
     def render_top_menu(self):
         self.file_dialog.render()
 
-        if self.selected_directory != self.file_dialog.selected_path:
+        if self.selected_directory != self.file_dialog.selected_path and self.file_dialog.selected_path is not None:
             print("selected new path ", self.file_dialog.selected_path)
             self.selected_directory = self.file_dialog.selected_path
             self.gui_config.app.load_model(model_directory=self.selected_directory)
@@ -34,8 +34,7 @@ class TopMenu:
                     self.file_dialog.open()
                 if imgui.menu_item("Clear")[0]:
                     print("Clear selected")
-                    self.gui_config.app_config.model_directory = None
-                    self.gui_config.app_config.save_config()
+                    self.gui_config.app_config.set_model_directory(None)
                     self.gui_config.model_parser.clear()
                     self.gui_config.n_net.clear()
                     self.gui_config.app.load_model()
@@ -70,10 +69,12 @@ class TopMenu:
                     self.power_of_two = pwr_of_two
 
                 if imgui.button("Save Settings"):
-                    self.gui_config.app_config.buffer_width = self.buffer_width
-                    self.gui_config.app_config.buffer_height = self.buffer_height
-                    self.gui_config.app_config.power_of_two = self.power_of_two
-                    self.gui_config.app_config.enable_blend = self.enable_blend
+                    self.gui_config.app_config.set_graphics_settings(
+                        self.buffer_width,
+                        self.buffer_height,
+                        self.power_of_two,
+                        self.enable_blend
+                    )
                     self.gui_config.app.reload_graphics_settings()
                     imgui.close_current_popup()  # Close the settings menu
                 imgui.end_menu()

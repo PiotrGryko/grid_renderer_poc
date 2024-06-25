@@ -1,7 +1,10 @@
 import os
-import threading
 
 from torch import nn
+from transformers import AutoTokenizer, AutoImageProcessor, AutoFeatureExtractor
+
+from app.ai.pipeline_task import PipelineTask
+from app.ai.task_mapping import get_model_class_from_path
 
 
 class LayerMeta:
@@ -24,7 +27,7 @@ class LayerMeta:
             c.update_names(self.name)
 
     def hook(self, module, input, output):
-        print("update activations", self.name, type(output))
+        # print("update activations", self.name, type(output))
         self.n_effects.show_quad_raw(self.name)
 
     def register_hooks(self, n_effects):
@@ -49,21 +52,29 @@ class ModelParser:
         self.n_effects = n_effects
         self.model = None
         self.tokenizer = None
+        self.image_processor = None
+        self.feature_extractor = None
+
         self.parsed_model = None
+        self.current_model_name = None
         self.hooked_model_name = None
         self.last_result = None
+        self.pipeline_task = PipelineTask()
 
     def clear(self):
         self.model = None
         self.tokenizer = None
+        self.feature_extractor = None
+        self.image_processor = None
         self.parsed_model = None
+        self.current_model_name = None
         self.hooked_model_name = None
-        self.last_result = None
+        self.pipeline_task.clear()
 
     def _register_hooks(self):
         print("register hooks")
         if self.hooked_model_name == self.parsed_model.name:
-            print("register hooks skpped")
+            print("register hooks skipped")
             return
         self.parsed_model.register_hooks(self.n_effects)
         self.hooked_model_name = self.parsed_model.name
@@ -87,37 +98,106 @@ class ModelParser:
             layer_meta = LayerMeta(module, name, module.__class__.__name__, [1, 1])
         return layer_meta
 
-    def perform_forward_pass(self, input_text):
-        thread = threading.Thread(target=self._perform_forward_pass_internal, args=(input_text,))
-        thread.start()
-        return thread
-
-    def pool_forward_pass_result(self):
-        if self.last_result is not None:
-            r = self.last_result
-            self.last_result = None
-            return r
-        else:
-            return None
-
-    def _perform_forward_pass_internal(self, input_text):
+    def run_model(self, input_text=None, images=None, context_message=None):
         self._register_hooks()
-        inputs = self.tokenizer(input_text, return_tensors="pt")
-        output = self.model.generate(**inputs, max_new_tokens=100, do_sample=False)
-        generated_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
+        self.pipeline_task.run_pipeline(input_text, images, context_message)
 
-        print("Input: ", input_text)
-        print("Output: ", generated_text)
-        self.last_result = generated_text
+    def get_run_result(self):
+        return self.pipeline_task.pool_forward_pass_result()
 
-    def load_hg_model(self, model, tokenizer):
+    def named_parameters(self):
+        if self.model is None:
+            return []
+        else:
+            return list(self.model.named_parameters())
+
+    def set_model(self, model):
         self.model = model
+
+    def set_tokenizer(self, tokenizer):
         self.tokenizer = tokenizer
+
+    def set_image_processor(self, image_processor):
+        self.image_processor = image_processor
+
+    def set_feature_extractor(self, feature_extractor):
+        self.feature_extractor = feature_extractor
+
+    def load_model_from_path(self, path, task=None):
+        model = None
+        # model_class = None
+        # if task is None:
+        #     task = get_model_pipeline_task_from_path(path)
+        #
+        # if task is not None:
+        #     model_class = TASK_TO_CLASS.get(task, None)
+
+        # config = AutoConfig.from_pretrained(path)
+        # print(config)
+        # print("config:")
+       # print(config.replace_list_option_in_docstrings())
+        model_class = get_model_class_from_path(path)
+        #model_class = Speech2TextModel
+        print("loading model",model_class)
+        if model_class is not None:
+            model = model_class.from_pretrained(path, local_files_only=True)
+            print(f"Successfully loaded model for task: {task}", model_class)
+        # else:
+        #     for task, model_class in TASK_TO_CLASS.items():
+        #         try:
+        #             # print(f"Trying to load model for task: {task}")
+        #             model = model_class.from_pretrained(path, local_files_only=True)
+        #             print(f"Successfully loaded model for task: {task}", model_class)
+        #             break
+        #         except Exception as e:
+        #             pass
+                    # print(f"Failed to load model for task: {task} with error: {e}")
+        self.model = model
+
+    def load_tokenizer_from_path(self, path):
+        try:
+            print(f"Trying to load tokenizer")
+            self.tokenizer = AutoTokenizer.from_pretrained(path, local_files_only=True, config=self.model.config)
+            print(f"Successfully loaded tokenizer")
+        except Exception as e:
+            print(f"Failed to load tokenizer with error: {e}")
+            self.tokenizer = None
+
+    def load_image_processor_from_path(self, path):
+        try:
+            print(f"Trying to load image processor")
+            self.image_processor = AutoImageProcessor.from_pretrained(path, local_files_only=True)
+            print(f"Successfully loaded image processor")
+        except Exception as e:
+            print(f"Failed to load image processor with error: {e}")
+            self.image_processor = None
+
+    def load_feature_extractor_from_path(self, path):
+        try:
+            print(f"Trying to load feature extractor")
+            self.feature_extractor = AutoFeatureExtractor.from_pretrained(path, local_files_only=True)
+            print(f"Successfully loaded feature extractor")
+        except Exception as e:
+            print(f"Failed to load feature extractor with error: {e}")
+            self.feature_extractor = None
+
+    def parse_loaded_model(self):
+        self.pipeline_task.load_from_model(self.model, self.tokenizer, self.image_processor, self.feature_extractor)
         _, module = list(self.model.named_modules())[0]
         name = os.path.basename(self.model.name_or_path)
         parsed_model = self._parse_module(module, name)
         parsed_model.update_names()
-
         self.parsed_model = parsed_model
+        self.current_model_name = self.parsed_model.name
 
-        return parsed_model
+    # def load_transformers_model(self, model, tokenizer):
+    #     self.model = model
+    #     self.tokenizer = tokenizer
+    #     self.pipeline_task.load_from_model(self.model, self.tokenizer)
+    #     _, module = list(self.model.named_modules())[0]
+    #     name = os.path.basename(self.model.name_or_path)
+    #     parsed_model = self._parse_module(module, name)
+    #     parsed_model.update_names()
+    #
+    #     self.parsed_model = parsed_model
+    #     self.current_model_name = self.parsed_model.name

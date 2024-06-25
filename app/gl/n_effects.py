@@ -45,8 +45,8 @@ class LayerEffect:
             self.radius = dif
         else:
             self.radius = self.padding
-        print("updated size ", min_size, self.w, self.h)
-        print("final size", x2 - x1, y2 - y1, y2, y1)
+        # print("updated size ", min_size, self.w, self.h)
+        # print("final size", x2 - x1, y2 - y1, y2, y1)
         self.quad.update_quad_position(x1, y1, x2, y2)
 
     def create_quad(self):

@@ -1,5 +1,5 @@
 class GuiConfig:
-    def __init__(self, n_net, n_window, color_theme, utils, config, app, download_manager, camera_animation, effects, model_parser):
+    def __init__(self, n_net, n_window, color_theme, utils, config, app, download_manager, camera_animation, effects, model_parser, image_loader):
         self.top_bar_height = 30
         self.bottom_bar_height = 30
 
@@ -13,6 +13,7 @@ class GuiConfig:
         self.camera_animation = camera_animation
         self.effects = effects
         self.model_parser = model_parser
+        self.image_loader = image_loader
 
         self.bottom_bar_message = "Welcome"
 

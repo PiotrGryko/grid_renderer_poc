@@ -103,10 +103,10 @@ class LayerItem:
                 c._render(on_hover, on_hover_end, on_jump, False, level=level + 1, active_layer_name=active_layer_name)
 
         if hovered is False and self.hovered:
-            print("hover end", self.name, self.clicked)
+            #print("hover end", self.name, self.clicked)
             on_hover_end(self)
         elif hovered and not self.hovered:
-            print("hover start", self.name)
+            #print("hover start", self.name)
             on_hover(self)
         self.hovered = hovered
 
@@ -155,7 +155,7 @@ class LayersView(Widget):
                         description=None
                     )
                 else:
-                    print("layer name ", l.name)
+                    #print("layer name ", l.name)
                     item = LayerItem(
                         name=l.name,
                         bounds=l.meta.bounds,
@@ -180,15 +180,10 @@ class LayersView(Widget):
         top_item.calculate_bounds()
         self.model_tree = top_item
 
-    def _on_visibility_changed(self):
-        self.config.show_layers_view = self.opened
 
-    def _update_visibility(self):
-        self.opened = self.config.show_layers_view
 
     def on_hover(self, layer):
         if self.hover_id != layer.name:
-            print("hovering true ", layer.name)
             self.hover_id = layer.name
             self.config.effects.show_quad(layer.name, layer.bounds)
             self.config.publish_hover_message(layer)
@@ -196,8 +191,6 @@ class LayersView(Widget):
     def on_hover_end(self, layer):
         self.hover_id = None
         self.config.effects.hide(layer.name)
-
-        print("hovering false", layer.name)
 
     def on_jump(self, layer):
         bounds = layer.bounds
