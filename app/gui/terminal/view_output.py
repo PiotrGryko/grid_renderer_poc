@@ -1,9 +1,45 @@
-import imgui
-from PIL import Image, ImageDraw
-import sounddevice as sd
+from enum import Enum
 
-from app.ai.pipeline_task import PipelineResult
+import imgui
+
+from app.ai.task_result import BasePipeResult
 from app.gui.managers.audio_player import AudioPlayer, PlaybackState
+
+
+class SystemMessageLevel(Enum):
+    SUCCESS = 0
+    WARNING = 1
+    ERROR = 2
+
+
+class MessageTypeSystemEvent:
+    def __init__(self, text, level):
+        self.text = text
+        self.level = level
+
+
+class MessageTypeUserInput:
+    def __init__(self, text):
+        self.text = text
+
+
+class MessageTypePipelineResult:
+    def __init__(self, pipeline_result):
+        self.result = pipeline_result
+
+
+class OutputBuffer:
+    def __init__(self):
+        self.lines = []
+
+    def send_user_message(self, text):
+        self.lines.append(MessageTypeUserInput(text))
+
+    def send_system_message(self, text, level=SystemMessageLevel.SUCCESS):
+        self.lines.append(MessageTypeSystemEvent(text, level))
+
+    def send_pipeline_result_message(self, result):
+        self.lines.append(MessageTypePipelineResult(result))
 
 
 class TerminalOutputView:
@@ -26,49 +62,50 @@ class TerminalOutputView:
         self.available_width = imgui.get_content_region_available()[0] - 2 * padding
 
     def render(self, buffer):
+
         imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (10, 10))
 
         imgui.begin_child("##OutputField", width=self.available_width, height=self.available_height, border=True)
-        for index, line in enumerate(buffer.output):
-            if type(line) is str:
-                imgui.text_wrapped(line)
-            if type(line) is PipelineResult:
-                if not line.success:
-                    imgui.push_style_color(imgui.COLOR_TEXT, 1, 0, 0)
-                    imgui.text_wrapped(str(line.formatted_output))
-                    imgui.pop_style_color()
-                elif line.task.is_object_detection():
-                    for img in line.images:
-                        self.image_loader.render_from_PIL_image(img, 300)
-                        imgui.text_wrapped(str(line.output))
-                elif line.task.is_image_classification():
-                    for img in line.images:
-                        self.image_loader.render_from_PIL_image(img, 300)
-                    imgui.text_wrapped(str(line.output))
-                elif line.task.is_depth_estimation():
-                    for img in line.images:
-                        self.image_loader.render_from_PIL_image(img, 300)
-                    imgui.text_wrapped(str(line.output))
-                elif line.task.is_image_segmentation():
-                    for img in line.images:
-                        self.image_loader.render_from_PIL_image(img, 300)
-                    imgui.text_wrapped(str(line.output))
-                elif line.task.is_text_to_audio():
-                    imgui.text_wrapped(str(line.formatted_output))
-                    imgui.same_line()
-                    state = self.audio_player.get_state(index)
-
-                    if state == PlaybackState.PLAYING:
-                        imgui.same_line()
-                        imgui.text("Playing...")
-                    else:
-                        if imgui.button(f"Play##{index}"):
-                            audio_data = line.audio_data.flatten()
-                            sampling_rate = line.sampling_rate
-                            self.audio_player.play(index, audio_data, sampling_rate)
-
+        for index, line in enumerate(buffer.lines):
+            if isinstance(line, MessageTypeUserInput):
+                imgui.text_wrapped("INPUT:")
+                imgui.same_line()
+                imgui.text_wrapped(line.text)
+            if isinstance(line, MessageTypeSystemEvent):
+                imgui.text_wrapped("SYSTEM:")
+                imgui.same_line()
+                if line.level is SystemMessageLevel.WARNING:
+                    imgui.text_colored(line.text, 1, 1, 0)
                 else:
-                    imgui.text_wrapped(str(line.formatted_output))
+                    imgui.text_colored(line.text, 0, 1, 0)
+            if isinstance(line, MessageTypePipelineResult):
+                pipe_result = line.result
+                imgui.text_wrapped("OUTPUT:")
+                imgui.same_line()
+                if not pipe_result.success:
+                    imgui.push_style_color(imgui.COLOR_TEXT, 1, 0, 0)
+                    for l in pipe_result.lines:
+                        imgui.text_wrapped(str(l.text))
+                    imgui.pop_style_color()
+                else:
+                    for l in pipe_result.lines:
+                        ## has audio
+                        if l.audio_data is not None:
+                            state = self.audio_player.get_state(index)
+
+                            if state == PlaybackState.PLAYING:
+                                imgui.text("Playing...")
+                            else:
+                                if imgui.button(f"Play##{index}"):
+                                    audio_data = l.audio_data.flatten()
+                                    sampling_rate = l.sampling_rate
+                                    self.audio_player.play(index, audio_data, sampling_rate)
+                        ## has image
+                        if l.image:
+                            self.image_loader.render_from_PIL_image(l.image, 300)
+                        ## has text
+                        if l.text:
+                            imgui.text_wrapped(str(l.text))
 
         if self.refresh_scroll:
             imgui.set_scroll_here_y(1.0)

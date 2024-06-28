@@ -1,33 +1,33 @@
 {
-    "color_name": "gist_ncar",
+    "color_name": "gnuplot",
     "buffer_width": 2500,
     "buffer_height": 2500,
     "enable_blend": true,
     "power_of_two": true,
-    "last_directory": "/Users/piotrgryko/PycharmProjects/Models",
-    "model_directory": "/Users/piotrgryko/PycharmProjects/Models/facebook_detr-resnet-50-panoptic",
+    "last_directory": "/Users/piotrgryko/PycharmProjects/Models/llava-hf_llava-v1.6-mistral-7b-hf",
+    "model_directory": "/Users/piotrgryko/PycharmProjects/Models/llava-hf_llava-v1.6-mistral-7b-hf",
     "gui_state_config": {
         "Layers": {
-            "opened": true,
+            "opened": false,
             "width": 250,
             "height": 1280.0,
             "view_type": 2
         },
         "Terminal": {
-            "opened": true,
-            "width": 1280.0,
-            "height": 769,
+            "opened": false,
+            "width": 2448.0,
+            "height": 330.75,
             "view_type": 3,
             "type": 1
         },
         "Download Manager": {
             "opened": false,
-            "width": 1498,
-            "height": 930,
+            "width": 913,
+            "height": 778,
             "view_type": 0
         }
     },
-    "window_width": 1677,
-    "window_height": 1280,
-    "show_weights": false
+    "window_width": 2448,
+    "window_height": 1323,
+    "show_weights": true
 }

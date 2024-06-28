@@ -7,12 +7,7 @@ class ParametersPopup:
         self.config = config
 
     def render(self):
-        if self.config.model_parser.pipeline_task.task.is_none():
-            return
-        parameters_dict = self.config.model_parser.pipeline_task.task.get_parameters()
-
-        if len(parameters_dict) == 0:
-            return
+        parameters_dict = self.config.model_parser.pipeline_task.task.parameters
 
         # Create a button that toggles the visibility of the parameters window
         if imgui.button("Parameters"):

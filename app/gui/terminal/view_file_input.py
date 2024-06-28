@@ -13,8 +13,9 @@ class FileInput:
     def has_files(self):
         return len(self.files) > 0
 
-    def render(self, vertical=True):
-
+    def render(self, hint=None):
+        if hint is None:
+            hint = "Drag and drop files"
         imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (10, 10))
 
         imgui.begin_child("##FileInputView", 0, self.input_height,
@@ -28,7 +29,7 @@ class FileInput:
         # Input Text Box
         if len(self.files) == 0:
             self.input_height = 35
-            imgui.text_wrapped("Drag and drop files")
+            imgui.text_wrapped(hint)
         else:
             height = 0
             for index, f in enumerate(self.files):

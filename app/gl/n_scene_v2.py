@@ -137,9 +137,14 @@ class EntityV2:
             return
         start_time = time.time()
         gl.glActiveTexture(self.gl_texture_unit)
+        #print("Activate texture time", (time.time() - start_time) * 1000, "ms")
         # Clear previous state
         gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, self.width, self.height, gl.GL_RED, gl.GL_FLOAT, self.empty_img)
+        #print("Clearing texture time", (time.time() - start_time) * 1000, "ms", "chunks count", len(chunks))
+        chunk_times = []
+
         for c, d in zip(chunks, dimensions):
+            chunk_start = time.time()
             cx1, cy1, cx2, cy2 = d
             width = cx2 - cx1
             height = cy2 - cy1
@@ -149,16 +154,32 @@ class EntityV2:
             # print("dx dy", cx1, cy1, cx2 - cx1, cy2 - cy1)
 
             gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, cx1, cy1, cx2 - cx1, cy2 - cy1, gl.GL_RED, gl.GL_FLOAT, c)
+            chunk_times.append(time.time() - chunk_start)
+        #print("Chunk update times:", [t * 1000 for t in chunk_times])
+        print("View data updated", (time.time() - start_time) * 1000, "ms")
 
-        # print("View data updated", (time.time() - start_time) * 1000, "ms")
+    def flush_screen_buffer(self):
+        if not self.created:
+            return
+        start_time = time.time()
+        gl.glActiveTexture(self.gl_texture_unit)
+        #print("Activate texture time", (time.time() - start_time) * 1000, "ms")
+        # Clear previous state
+        gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, self.width, self.height, gl.GL_RED, gl.GL_FLOAT, self.empty_img)
+        #print("Flushing the buffer", (time.time() - start_time) * 1000, "ms")
 
     def update_entity(self, visible_grid_part):
+        start_time = time.time()
         self.visible_grid_part = visible_grid_part
         self.current_texture_factor = self.visible_grid_part.factor
         chunks, dimensions = visible_grid_part.grab_visible_data()
+        # chunks, dimensions = visible_grid_part.grab_visible_data_patch()
         self.update_data(
             chunks,
             dimensions)
+        #visible_grid_part.update_scene_buffer_directly(self.empty_img)
+        #self.flush_screen_buffer()
+        print("Updated entity", (time.time() - start_time) * 1000, "ms")
 
     def update_quad_position(self, buffer_w, buffer_h):
         if self.visible_grid_part is None:

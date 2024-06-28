@@ -1,104 +1,63 @@
+import json
 import threading
-from io import BytesIO
 
-import requests
-from PIL import Image, ImageDraw
 from transformers import pipeline
 
-from app.ai.task_mapping import get_model_pipeline_task, TaskType, get_forward_params
+from app.ai.task_mapping import get_model_pipeline_task, TaskType
+from app.ai.task_result import create_pipe_success_result, create_pipe_error_result
 
 
-class PipelineResult:
-    def __init__(self, task, input, output, success):
-        self.task = task
-        self.input = input
-        self.output = output
-        self.formatted_output = output
-        self.images = []
-        self.success = success
-        self.audio_data = None
-        self.sampling_rate = None
+class TaskInput:
+    def __init__(self, text, images, files, context, labels):
+        self.text = text
+        self.images = images
+        self.files = files
+        self.context = context
+        self.labels = labels
 
-    def __repr__(self):
-        return (f"{self.__class__.__name__}(task={self.task!r}, "
-                f"input={self.input!r},"
-                f" output={self.output!r}, "
-                f" images={self.images!r})")
+    def get_table(self):
+        try:
+            table = json.loads(self.context)
+            return table
+        except Exception as e:
+            print("Table exception", e)
+            return {}
 
-    def process_result(self):
-        if not self.success:
-            self.formatted_output = f"OUTPUT:{self.output}"
-        elif self.task.is_object_detection():
-            if type(self.input) is str and len(self.output) > 0:
-                self.images.append(self.draw_boxes_on_image(self.input, self.output))
-            elif type(self.input) is list:
-                for i, o in zip(self.input, self.output):
-                    self.images.append(self.draw_boxes_on_image(i, o))
-        elif self.task.is_image_classification():
-            if type(self.input) is str and len(self.output) > 0:
-                self.images.append(self.load_image(self.input))
-            elif type(self.input) is list:
-                for i in self.input:
-                    self.images.append(self.load_image(i))
-        elif self.task.is_depth_estimation():
-            if type(self.input) is str and len(self.output) > 0:
-                self.images.append(self.output['depth'])
-            elif type(self.input) is list:
-                for i, o in zip(self.input, self.output):
-                    self.images.append(o['depth'])
-        elif self.task.is_image_segmentation():
-            if type(self.input) is str and len(self.output) > 0:
-                for out in self.output:
-                    self.images.append(out['mask'])
-            elif type(self.input) is list:
-                for i, out in zip(self.input, self.output):
-                    for o in out:
-                        self.images.append(o['mask'])
-        elif self.task.is_text_to_audio():
-            self.audio_data = self.output['audio']
-            self.sampling_rate = self.output['sampling_rate']
-            self.formatted_output = f"OUTPUT:"
-        elif self.task.is_text_generation():
-            self.formatted_output = f"OUTPUT:{self.output[0]['generated_text']}"
-        else:
-            self.formatted_output = f"OUTPUT:{self.output}"
+    def validate(self, task):
+        empty_command = self.text is None
+        empty_images = self.images is None or len(self.images) == 0
+        empty_files = self.files is None or len(self.files) == 0
+        empty_context_message = self.context is None or self.context == ""
+        empty_labels = self.labels is None or len(self.labels) == 0
 
-    def load_image(self, image_path):
-        print("load image ", image_path)
-        if image_path.startswith('http://') or image_path.startswith('https://'):
-            response = requests.get(image_path)
-            image = Image.open(BytesIO(response.content))
-        else:
-            # Open the image file
-            image = Image.open(image_path)
-        return image
+        if empty_command and empty_images and empty_files:
+            return "No data"
+        if task.is_none():
+            return "No pipeline task detected"
+        elif task.has_zero_shot_label_input and empty_labels:
+            return "You must add candidate labels"
+        elif task.has_context_input and empty_context_message:
+            return "You must add context message"
+        elif task.has_image_input and empty_images:
+            return f"{task.value} pipeline requires image input"
+        elif task.has_audio_input and empty_files:
 
-    def draw_boxes_on_image(self, image_path, detections):
-        # Open the image file
-        print("draw boxes", image_path, detections)
-        if image_path.startswith('http://') or image_path.startswith('https://'):
-            response = requests.get(image_path)
-            image = Image.open(BytesIO(response.content))
-        else:
-            # Open the image file
-            image = Image.open(image_path)
+            return f"{task.value} pipeline requires audio input"
+        elif task.has_video_input and empty_files:
+            return f"{task.value} pipeline requires video input"
+        return None
 
-        draw = ImageDraw.Draw(image)
-
-        # Loop through the detections and draw boxes
-        for detection in detections:
-            box = detection['box']
-            label = detection['label']
-            score = detection['score']
-
-            # Define the bounding box
-            xmin, ymin, xmax, ymax = box['xmin'], box['ymin'], box['xmax'], box['ymax']
-            draw.rectangle([xmin, ymin, xmax, ymax], outline="red", width=3)
-
-            # Draw label and score
-            draw.text((xmin, ymin), f"{label} ({score:.2f})", fill="red")
-
-        return image
+    def get_input_message(self):
+        user_msg = ""
+        if self.files:
+            user_msg += str(self.files)
+            user_msg += "\n"
+        if self.images:
+            user_msg += str(self.images)
+            user_msg += "\n"
+        if self.text:
+            user_msg += self.text
+        return user_msg
 
 
 class PipelineTask:
@@ -118,7 +77,6 @@ class PipelineTask:
         self.image_processor = None
         self.feature_extractor = None
         self.last_result = None
-        self.forward_pass_parameters = None
 
     def load_from_model(self, model, tokenizer=None, image_processor=None, feature_extractor=None):
         self.model = model
@@ -127,32 +85,46 @@ class PipelineTask:
         self.feature_extractor = feature_extractor
 
         self.task = get_model_pipeline_task(self.model)
-        if self.model:
-            self.forward_pass_parameters = get_forward_params(self.model.__class__)
+        self.task.fill()
         print("detected pipeline", self.task)
 
-    def get_model_forward_parameters(self):
-        if self.model:
-            return get_forward_params(self.model.__class__)
-        else:
-            return None
+    def change_task(self, task):
+        self.task = task
+        self.task.fill()
 
-    def run_pipeline(self, input_text=None, images=None, context_message=None):
+    def run_pipeline(self, task_input):
         thread = threading.Thread(target=self._run_pipeline_internal,
                                   args=(self.task,
-                                        input_text,
-                                        images,
-                                        context_message))
+                                        task_input))
         thread.start()
         return thread
 
-    def _run_pipeline_internal(self, task, input_text, images, context_message):
+    def _run_pipeline_internal(self, task, task_input):
+        input_text = task_input.text
+        images = task_input.images
+        files = task_input.files
+        context_message = task_input.context
+        zero_shot_labels = task_input.labels
+
         print("Run pipeline", task, input_text,
               "\nhas model", self.model is not None,
               "\nhas tokenizer", self.tokenizer is not None,
               "\nhas image processor", self.image_processor is not None,
               "\nhas feature extractor", self.feature_extractor is not None)
-        input_value = images if images is not None else input_text
+
+        if images is None:
+            images = []
+        if files is None:
+            files = []
+
+        if task.is_zero_shot_object_detection() and len(files) > 0:
+            input_value = files[0]
+        elif len(files) > 0:
+            input_value = files if files is not None else input_text
+        elif len(images) > 0:
+            input_value = images
+        else:
+            input_value = input_text
 
         try:
             if task.is_text_generation():
@@ -166,13 +138,6 @@ class PipelineTask:
                                 max_length=50,
                                 return_full_text=False
                                 )
-            elif task.is_text_classification():
-                pipe = pipeline(task=task.value,
-                                model=self.model,
-                                tokenizer=self.tokenizer,
-                                image_processor=self.image_processor,
-                                feature_extractor=self.feature_extractor
-                                )
             else:
                 pipe = pipeline(task=task.value,
                                 model=self.model,
@@ -180,30 +145,40 @@ class PipelineTask:
                                 image_processor=self.image_processor,
                                 feature_extractor=self.feature_extractor
                                 )
+            print("Task attempt:", task, input_value, context_message, zero_shot_labels)
 
-            if task.is_question_answering():
+            if task.has_zero_shot_label_input:
+                output = pipe(input_value, candidate_labels=zero_shot_labels)
+            elif task.is_question_answering():
                 output = pipe(question=input_value, context=context_message)
+            elif task.is_visual_question_answering():
+                output = pipe(question=input_text, image=images[0])
+            elif task.is_table_question_answering():
+                output = pipe(query=input_text, table=task_input.get_table())
+            elif task.is_image_to_text():
+                print("image to text", images, input_text)
+                output = pipe(images, prompt=input_text)
             else:
                 output = pipe(input_value)
+            if zero_shot_labels:
+                print("Labels", zero_shot_labels)
+            if context_message:
+                print("Context", context_message)
             print("Input: ", input_value)
             print("Output: ", output)
-            self.last_result = PipelineResult(
-                task=task,
+            self.last_result = create_pipe_success_result(
+                task_type=task,
                 input=input_value,
-                output=output,
-                success=True
+                output=output
             )
-            self.last_result.process_result()
         except Exception as e:
             print("Input: ", input_value)
             print("Exception: ", e)
-            self.last_result = PipelineResult(
-                task=task,
+            self.last_result = create_pipe_error_result(
+                task_type=task,
                 input=input_value,
-                output=str(e),
-                success=False
+                error=str(e)
             )
-            self.last_result.process_result()
 
     def pool_forward_pass_result(self):
         if self.last_result is not None:

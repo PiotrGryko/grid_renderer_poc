@@ -57,6 +57,26 @@ class VisibleGrid:
             self.factor)
         return chunks, dimensions
 
+    def grab_visible_data_patch(self):
+        # Grab the numpy data
+        chunks, dimensions = self.n_net.get_subgrid_patch(
+            self.x1,
+            self.y1,
+            self.x2,
+            self.y2,
+            self.factor)
+        return chunks, dimensions
+
+    def update_scene_buffer_directly(self, buffer):
+        # Grab the numpy data
+        self.n_net.update_buffer_directly(
+            self.x1,
+            self.y1,
+            self.x2,
+            self.y2,
+            self.factor,
+            buffer)
+
     def get_quad_position(self, width, height):
         # The quad x1,y1,x2,y2 is always 0,0,width,height
         # The position of the quad in the world is offset + size * factor

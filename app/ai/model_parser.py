@@ -98,9 +98,9 @@ class ModelParser:
             layer_meta = LayerMeta(module, name, module.__class__.__name__, [1, 1])
         return layer_meta
 
-    def run_model(self, input_text=None, images=None, context_message=None):
+    def run_model(self, task_input):
         self._register_hooks()
-        self.pipeline_task.run_pipeline(input_text, images, context_message)
+        self.pipeline_task.run_pipeline(task_input)
 
     def get_run_result(self):
         return self.pipeline_task.pool_forward_pass_result()
@@ -123,35 +123,13 @@ class ModelParser:
     def set_feature_extractor(self, feature_extractor):
         self.feature_extractor = feature_extractor
 
-    def load_model_from_path(self, path, task=None):
+    def load_model_from_path(self, path):
         model = None
-        # model_class = None
-        # if task is None:
-        #     task = get_model_pipeline_task_from_path(path)
-        #
-        # if task is not None:
-        #     model_class = TASK_TO_CLASS.get(task, None)
-
-        # config = AutoConfig.from_pretrained(path)
-        # print(config)
-        # print("config:")
-       # print(config.replace_list_option_in_docstrings())
         model_class = get_model_class_from_path(path)
-        #model_class = Speech2TextModel
-        print("loading model",model_class)
+        print("loading model", model_class, path)
         if model_class is not None:
             model = model_class.from_pretrained(path, local_files_only=True)
-            print(f"Successfully loaded model for task: {task}", model_class)
-        # else:
-        #     for task, model_class in TASK_TO_CLASS.items():
-        #         try:
-        #             # print(f"Trying to load model for task: {task}")
-        #             model = model_class.from_pretrained(path, local_files_only=True)
-        #             print(f"Successfully loaded model for task: {task}", model_class)
-        #             break
-        #         except Exception as e:
-        #             pass
-                    # print(f"Failed to load model for task: {task} with error: {e}")
+            print(f"Successfully loaded model from path", model_class)
         self.model = model
 
     def load_tokenizer_from_path(self, path):

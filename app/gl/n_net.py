@@ -10,7 +10,7 @@ from app.grid.n_grid import create_grid, create_layer
 
 
 class NetWrapper:
-    def __init__(self, n_window, color_theme, show_weights = True):
+    def __init__(self, n_window, color_theme, show_weights=True):
         self.weights_net = NNet(n_window, color_theme)
         self.neurons_net = NNet(n_window, color_theme)
 
@@ -67,6 +67,18 @@ class NetWrapper:
         else:
             return self.neurons_net.get_subgrid_chunks_grid_dimensions(col_min, row_min, col_max, row_max, factor)
 
+    def get_subgrid_patch(self, col_min, row_min, col_max, row_max, factor):
+        if self.show_weights:
+            return self.weights_net.get_subgrid_patch(col_min, row_min, col_max, row_max, factor)
+        else:
+            return self.neurons_net.get_subgrid_patch(col_min, row_min, col_max, row_max, factor)
+
+    def update_buffer_directly(self, col_min, row_min, col_max, row_max, factor, buffer):
+        if self.show_weights:
+            return self.weights_net.update_tex_buffer_directly(col_min, row_min, col_max, row_max, factor, buffer)
+        else:
+            return self.neurons_net.update_tex_buffer_directly(col_min, row_min, col_max, row_max, factor, buffer)
+
     def get_point_data(self, x, y):
         if self.show_weights:
             return self.weights_net.get_point_data(x, y)
@@ -101,7 +113,6 @@ class NNet:
         self.total_size = 0
         self.visible_layers = []
         self.loaded_data_id = None
-
 
     def init_from_model_parser(self, model_parser):
         print("Init net from activations parser")
@@ -197,8 +208,22 @@ class NNet:
         for index, (name, tensor) in enumerate(names_parameters):
             print(f"\rDetaching tensors: {int(100 * index / size)}%", end="")
             tensor_numpy = tensor.detach().numpy()
-            layers.append(tensor_numpy)
-            names.append(name)
+            print("tensor shape", tensor_numpy.shape, name)
+            # layers.append(tensor_numpy)
+            # names.append(name)
+            if tensor_numpy.ndim == 4:
+                # Handling convolutional networks with shape (x, y, w, h)
+                # x - filters count, y - input channels count, w and h is the filter size
+                x, y, w, h = tensor_numpy.shape
+                for i in range(x):
+                    for j in range(y):
+                        pass
+                        #layers.append(tensor_numpy[i, j, :, :])
+                        #names.append(f"{name}_filter_{i}_channel_{j}")
+            else:
+                # Handling regular layers with shape (x, y)
+                layers.append(tensor_numpy)
+                names.append(name)
 
             if save_to_memfile:
                 # Create a memory-mapped file
@@ -230,7 +255,7 @@ class NNet:
         print("Creating layers", len(all_layers))
         for index, layer_data in enumerate(all_layers):
             name = all_names[index]
-            if len(layer_data.shape)==0:
+            if len(layer_data.shape) == 0:
                 layer_data = np.array([1])
             grid_layer = create_layer(layer_data, name)
             self.layers.append(grid_layer)
@@ -282,9 +307,27 @@ class NNet:
                                                                 factor,
                                                                 factor,
                                                                 True)
-
         print("Get grid chunks", (time.time() - start_time) * 1000, "ms", "factor:", factor, "count", len(chunks))
         return chunks, dimensions
+
+    def get_subgrid_patch(self, col_min, row_min, col_max, row_max, factor):
+        start_time = time.time()
+        chunks, dimensions = self.grid.get_visible_data_single_patch(col_min, row_min, col_max, row_max,
+                                                                     factor,
+                                                                     factor,
+                                                                     True)
+        print("Get grid patch", (time.time() - start_time) * 1000, "ms", "factor:", factor, "count")
+        return chunks, dimensions
+
+    def update_tex_buffer_directly(self, col_min, row_min, col_max, row_max, factor, buffer):
+        start_time = time.time()
+        self.grid.update_texture_buffer_with_visible_data_directly(col_min, row_min, col_max,
+                                                                                        row_max,
+                                                                                        factor,
+                                                                                        factor,
+                                                                                        buffer)
+        print("Updated tex buffer", (time.time() - start_time) * 1000, "ms", "factor:", factor, "count")
+        print("visible layers count",len(self.visible_layers))
 
     def get_point_data(self, x, y):
         return self.grid.get_point_data(x, y)

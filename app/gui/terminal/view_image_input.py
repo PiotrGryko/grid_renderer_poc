@@ -7,6 +7,7 @@ class ImageInput:
         self.input_changed = False
         self.image_loader = config.image_loader
         self.images = []
+        self.single_file = False
 
     def clear_input(self):
         self.images = []
@@ -14,7 +15,8 @@ class ImageInput:
     def has_images(self):
         return len(self.images) > 0
 
-    def render(self, vertical=True):
+    def render(self, vertical=True, single_image = False):
+        self.single_file = single_image
 
         imgui.push_style_var(imgui.STYLE_WINDOW_PADDING, (10, 10))
 
@@ -46,5 +48,7 @@ class ImageInput:
         imgui.pop_style_var(1)
 
     def load_image(self, file_path, max_size=130):
+        if self.single_file:
+            self.images.clear()
         self.images.append(file_path)
         self.input_height = 150

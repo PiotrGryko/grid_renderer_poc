@@ -229,7 +229,7 @@ class OpenGLApplication:
             self.n_net.weights_net.init_from_np_arrays([welcome_message], ["welcome_layer"])
         else:
             self.model_parser.parse_loaded_model()
-            self.n_net.neurons_net.init_from_model_parser(self.model_parser)
+            #self.n_net.neurons_net.init_from_model_parser(self.model_parser)
 
         self.app_config.save_config()
 

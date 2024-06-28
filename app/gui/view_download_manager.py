@@ -1,15 +1,11 @@
 import math
-import os
 import threading
 import time
 
 import imgui
-import requests
-import transformers
-from huggingface_hub import HfApi, ModelFilter
-from transformers import AutoConfig
+from huggingface_hub import HfApi
 
-from app.ai.task_mapping import get_model_class_from_config, SUPPORTED_PIPELINES
+from app.ai.task_result import SUPPORTED_PIPELINES
 from app.gui.file_dialog import FileDialog
 from app.gui.widget import Widget
 

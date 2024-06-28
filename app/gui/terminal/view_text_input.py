@@ -4,20 +4,23 @@ import imgui
 
 
 class TextInput:
-    def __init__(self, hint=None):
+    def __init__(self):
         self.input_changed = False
         self.last_length = 0
         self.inserted = False
         self.input_height = 50
         self.input_width = None
         self.buffer = None
-        self.hint = hint
         self.input_id = uuid.uuid4()
 
     def clear_input(self):
         self.buffer = None
 
-    def render(self):
+    def render(self, hint=None):
+
+        if hint is None:
+            hint = "Type your message"
+
         self.input_width = imgui.get_content_region_available_width()
 
         def input_callback(data):
@@ -39,10 +42,10 @@ class TextInput:
         imgui.push_style_color(imgui.COLOR_FRAME_BACKGROUND, 0, 0, 0, 0)
 
         cursor_pos_x = imgui.get_cursor_pos_x()
-        if not self.buffer and self.hint:
+        if not self.buffer and hint:
             imgui.push_style_color(imgui.COLOR_TEXT, 0.7, 0.7, 0.7, 1.0)  # Set hint color to gray
             imgui.set_cursor_pos_x(cursor_pos_x)  # Move cursor to the beginning of the line
-            imgui.text(self.hint)
+            imgui.text(hint)
             imgui.pop_style_color()
             imgui.same_line()
             imgui.set_cursor_pos_x(cursor_pos_x)  # Move cursor to the beginning of the line again
