@@ -182,7 +182,7 @@ class GuiPants:
         self.neuron_popup.render()
         # self.render_active_message()
         self.render_config_box()
-        self.render_scene_buttons()
+        #self.render_scene_buttons()
         self.layers_view.render()
         self.model_settings_page.render()
 

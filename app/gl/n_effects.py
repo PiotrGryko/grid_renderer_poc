@@ -98,24 +98,18 @@ class NEffects:
             self.zoom = zoom
             self.layer_effect.updated = False
 
-    def show_quad(self, id, bounds):
-        if self.layer_effect is None:
-            self.layer_effect = LayerEffect()
-        self.id = id
-        self.layer_effect.show_quad(id, bounds)
-
-    def show_quad_raw(self, id):
+    def show_quad(self, id):
         if self.layer_effect is None:
             self.layer_effect = LayerEffect()
         self.id = id
         self.raw_id = id
-        bounds = None
-        for l in self.n_net.layers:
-            if self.id == l.name:
-                bounds = l.meta.bounds
-                break
-        if bounds is not None:
-            self.layer_effect.show_quad(id, bounds)
+        layer_meta = self.n_net.layers_meta_dict.get(self.id, None)
+        if layer_meta:
+            self.layer_effect.show_quad(self.id, layer_meta.bounds)
+
+    def clear(self):
+        self.id = None
+        self.raw_id = None
 
     def hide(self, id):
         if self.layer_effect is not None and self.id == id:

@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+import torch
 from torch import nn
 from transformers import AutoTokenizer, AutoImageProcessor, AutoFeatureExtractor
 
@@ -7,30 +9,38 @@ from app.ai.pipeline_task import PipelineTask
 from app.ai.task_mapping import get_model_class_from_path
 
 
-class LayerMeta:
-    def __init__(self, module, name, layer_type, shape=None, probability=None):
+class ModuleMeta:
+    def __init__(self, module, name, is_parameter=False):
         self.module = module
         self.name = name
-        self.layer_type = layer_type
-        self.shape = shape
-        self.probability = probability
         self.components = []
         self.n_effects = None
+        self.is_parameter = is_parameter
+
+    def get_data(self):
+        if isinstance(self.module, nn.Parameter):
+            return self.module.detach().numpy()
+        elif self.is_parameter:
+            return np.ones([2, 2])
+        else:
+            return None
 
     def add_component(self, component):
         self.components.append(component)
 
-    def update_names(self, parent_name=None):
-        if parent_name is not None:
-            self.name = parent_name + "." + self.name
-        for c in self.components:
-            c.update_names(self.name)
-
     def hook(self, module, input, output):
-        # print("update activations", self.name, type(output))
-        self.n_effects.show_quad_raw(self.name)
+        self.flash(self.n_effects)
+
+    def flash(self, n_effects):
+        if self.is_parameter:
+            n_effects.show_quad(self.name)
+        else:
+            for c in self.components:
+                c.flash(n_effects)
 
     def register_hooks(self, n_effects):
+        if isinstance(self.module, nn.Parameter):
+            return
         self.n_effects = n_effects
         self.module.register_forward_hook(self.hook)
         for c in self.components:
@@ -38,8 +48,7 @@ class LayerMeta:
 
     def __repr__(self, level=0):
         indent = "  " * level
-        repr_str = (f"{indent}LayerMeta(name={self.name}, layer_type={self.layer_type}, "
-                    f"shape={self.shape}, probability={self.probability},\n"
+        repr_str = (f"{indent}LayerMeta(name={self.name}"
                     f"{indent}components=[\n")
         for component in self.components:
             repr_str += component.__repr__(level + 1) + ",\n"
@@ -80,23 +89,23 @@ class ModelParser:
         self.hooked_model_name = self.parsed_model.name
 
     def _parse_module(self, module, name):
-        if isinstance(module, nn.Embedding):
-            layer_meta = LayerMeta(module, name, module.__class__.__name__,
-                                   [module.num_embeddings, module.embedding_dim])
-        elif isinstance(module, nn.Linear):
-            layer_meta = LayerMeta(module, name, module.__class__.__name__, [module.in_features, module.out_features])
-        elif isinstance(module, nn.LayerNorm):
-            layer_meta = LayerMeta(module, name, module.__class__.__name__, [module.normalized_shape[0], 1])
-        elif isinstance(module, nn.Dropout):
-            layer_meta = LayerMeta(module, name, module.__class__.__name__, [1, 1], probability=module.p)
-        elif hasattr(module, 'children') and list(module.children()):
-            layer_meta = LayerMeta(module, name, module.__class__.__name__, )
-            for i, (child_name, child_module) in enumerate(module.named_children()):
-                child_parsed = self._parse_module(child_module, child_name)
-                layer_meta.add_component(child_parsed)
+        print(type(module), module)
+        module_meta = ModuleMeta(module, name)
+        named_children = list(module.named_children())
+        if len(named_children) > 0:
+            for i, (child_name, child_module) in enumerate(named_children):
+                child_parsed = self._parse_module(child_module, f"{name}.{child_name}")
+                module_meta.add_component(child_parsed)
         else:
-            layer_meta = LayerMeta(module, name, module.__class__.__name__, [1, 1])
-        return layer_meta
+            parameters = list(module.named_parameters())
+            if len(parameters) > 0:
+                for n, p in parameters:
+                    parameter = ModuleMeta(p, f"{name}.{n}", True)
+                    module_meta.add_component(parameter)
+            else:
+                module_meta.is_parameter = True
+
+        return module_meta
 
     def run_model(self, task_input):
         self._register_hooks()
@@ -161,21 +170,10 @@ class ModelParser:
 
     def parse_loaded_model(self):
         self.pipeline_task.load_from_model(self.model, self.tokenizer, self.image_processor, self.feature_extractor)
+
         _, module = list(self.model.named_modules())[0]
         name = os.path.basename(self.model.name_or_path)
         parsed_model = self._parse_module(module, name)
-        parsed_model.update_names()
+
         self.parsed_model = parsed_model
         self.current_model_name = self.parsed_model.name
-
-    # def load_transformers_model(self, model, tokenizer):
-    #     self.model = model
-    #     self.tokenizer = tokenizer
-    #     self.pipeline_task.load_from_model(self.model, self.tokenizer)
-    #     _, module = list(self.model.named_modules())[0]
-    #     name = os.path.basename(self.model.name_or_path)
-    #     parsed_model = self._parse_module(module, name)
-    #     parsed_model.update_names()
-    #
-    #     self.parsed_model = parsed_model
-    #     self.current_model_name = self.parsed_model.name

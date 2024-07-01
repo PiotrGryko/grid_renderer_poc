@@ -18,7 +18,7 @@ class NumpyGrid:
         self.visible_layers = []
 
     def add_layers(self, layers):
-        self.layers = layers
+        self.layers += layers
 
     def rectangles_intersect(self, x1, y1, x2, y2, grid_x1, grid_y1, grid_x2, grid_y2):
         # Check if one rectangle is on left side of other
@@ -95,66 +95,17 @@ class NumpyGrid:
                          overlap_y2))
         return result_chunks, result_dimensions
 
-    def get_visible_data_single_patch(self, x1, y1, x2, y2, width_factor, height_factor, grid_space=False):
-        # Determine the dimensions of the output grid
-        output_width = (x2 - x1) // width_factor
-        output_height = (y2 - y1) // height_factor
+    def update_texture_buffer_with_visible_data_directly(self, x1, y1, x2, y2, width_factor, height_factor, buffer,
+                                                         cancellation_signal):
 
-        # Initialize the output grid with appropriate dimensions
-        output_grid = np.zeros((output_height, output_width))
+        layers = self.visible_layers
         # print("shape",output_grid.shape)
-        for sublayer in self.visible_layers:
-            grid_x1 = sublayer.column_offset
-            grid_y1 = sublayer.row_offset
-            grid_x2 = grid_x1 + sublayer.columns_count
-            grid_y2 = grid_y1 + sublayer.rows_count
+        for index, sublayer in enumerate(layers):
 
-            if self.rectangles_intersect(x1, y1, x2, y2, grid_x1, grid_y1, grid_x2, grid_y2):
-                overlap_x1 = max(x1, grid_x1)
-                overlap_y1 = max(y1, grid_y1)
-                overlap_x2 = min(x2, grid_x2)
-                overlap_y2 = min(y2, grid_y2)
+            if cancellation_signal.is_canceled():
+                print("Updating buffer canceled! ", index, "/", len(layers))
+                return
 
-                if sublayer.layer_grid.ndim == 1:
-                    start_index_y = (overlap_y1 - grid_y1) % height_factor
-                    subgrid_slice = sublayer.layer_grid[
-                                    (overlap_y1 - grid_y1 - start_index_y):(overlap_y2 - grid_y1):height_factor]
-                else:
-                    start_index_y = (overlap_y1 - grid_y1) % height_factor
-                    start_index_x = (overlap_x1 - grid_x1) % width_factor
-                    subgrid_slice = sublayer.layer_grid[
-                                    (overlap_y1 - grid_y1 - start_index_y):(overlap_y2 - grid_y1):height_factor,
-                                    (overlap_x1 - grid_x1 - start_index_x):(overlap_x2 - grid_x1):width_factor]
-
-                # # Determine the position in the output grid
-                dx1 = (overlap_x1 - x1) // width_factor
-                dy1 = (overlap_y1 - y1) // height_factor
-                h, w = unpack_shape(subgrid_slice)
-                # print("layer shape",sublayer.layer_grid.shape)
-                # print("shapes",dx1,dy1,w,h)
-                # print("slice shape",subgrid_slice.shape)
-                if subgrid_slice.ndim == 1:
-                    output_grid[dy1:dy1 + h, dx1:dx1 + w] = subgrid_slice[:, np.newaxis]
-                else:
-                    output_grid[dy1:dy1 + h, dx1:dx1 + w] = subgrid_slice
-        h, w = output_grid.shape
-        dimmensions = [
-            (
-                0,
-                0,
-                w,
-                h
-            )
-        ]
-        return [output_grid], dimmensions
-
-    def update_texture_buffer_with_visible_data_directly(self, x1, y1, x2, y2, width_factor, height_factor, buffer):
-
-        # Initialize the output grid with appropriate dimensions
-        output_grid = buffer
-        output_grid.fill(-1)
-        # print("shape",output_grid.shape)
-        for sublayer in self.visible_layers:
             grid_x1 = sublayer.column_offset
             grid_y1 = sublayer.row_offset
             grid_x2 = grid_x1 + sublayer.columns_count
@@ -175,92 +126,12 @@ class NumpyGrid:
 
                 # Assign slice directly
                 if sublayer.layer_grid.ndim == 1:
-                    output_grid[dy1:dy1 + h, dx1:dx1 + 1] = sublayer.layer_grid[(overlap_y1 - grid_y1):(
-                                overlap_y2 - grid_y1):height_factor][:, np.newaxis]
-                else:
-                    output_grid[dy1:dy1 + h, dx1:dx1 + w] = sublayer.layer_grid[
-                                                            (overlap_y1 - grid_y1):(overlap_y2 - grid_y1):height_factor,
-                                                            (overlap_x1 - grid_x1):(overlap_x2 - grid_x1):width_factor]
-
-                # if sublayer.layer_grid.ndim == 1:
-                #     start_index_y = (overlap_y1 - grid_y1) % height_factor
-                #     subgrid_slice = sublayer.layer_grid[
-                #                     (overlap_y1 - grid_y1 - start_index_y):(overlap_y2 - grid_y1):height_factor]
-                # else:
-                #     start_index_y = (overlap_y1 - grid_y1) % height_factor
-                #     start_index_x = (overlap_x1 - grid_x1) % width_factor
-                #     subgrid_slice = sublayer.layer_grid[
-                #                     (overlap_y1 - grid_y1 - start_index_y):(overlap_y2 - grid_y1):height_factor,
-                #                     (overlap_x1 - grid_x1 - start_index_x):(overlap_x2 - grid_x1):width_factor]
-                #
-                # # # Determine the position in the output grid
-                # dx1 = (overlap_x1 - x1) // width_factor
-                # dy1 = (overlap_y1 - y1) // height_factor
-                # h, w = unpack_shape(subgrid_slice)
-                #
-                #
-                # print(w,h,slice_w,slice_h)
-                # if subgrid_slice.ndim == 1:
-                #     output_grid[dy1:dy1 + h, dx1:dx1 + w] = subgrid_slice[:, np.newaxis]
-                # else:
-                #     output_grid[dy1:dy1 + h, dx1:dx1 + w] = subgrid_slice
-
-    def update_open_gl_buffer_directly(self, x1, y1, x2, y2, width_factor, height_factor, buffer):
-
-        # Initialize the output grid with appropriate dimensions
-        output_grid = buffer
-        output_grid.fill(-1)
-        # print("shape",output_grid.shape)
-        for sublayer in self.visible_layers:
-            grid_x1 = sublayer.column_offset
-            grid_y1 = sublayer.row_offset
-            grid_x2 = grid_x1 + sublayer.columns_count
-            grid_y2 = grid_y1 + sublayer.rows_count
-
-            if self.rectangles_intersect(x1, y1, x2, y2, grid_x1, grid_y1, grid_x2, grid_y2):
-                overlap_x1 = max(x1, grid_x1)
-                overlap_y1 = max(y1, grid_y1)
-                overlap_x2 = min(x2, grid_x2)
-                overlap_y2 = min(y2, grid_y2)
-
-                dx1 = (overlap_x1 - x1) // width_factor
-                dy1 = (overlap_y1 - y1) // height_factor
-
-                # Pre calculate the shape of the slice
-                h = (overlap_y2 - overlap_y1 + height_factor - 1) // height_factor
-                w = (overlap_x2 - overlap_x1 + width_factor - 1) // width_factor
-
-                # Assign slice directly
-                if sublayer.layer_grid.ndim == 1:
-                    output_grid[dy1:dy1 + h, dx1:dx1 + 1] = sublayer.layer_grid[(overlap_y1 - grid_y1):(
+                    buffer[dy1:dy1 + h, dx1:dx1 + 1] = sublayer.layer_grid[(overlap_y1 - grid_y1):(
                             overlap_y2 - grid_y1):height_factor][:, np.newaxis]
                 else:
-                    output_grid[dy1:dy1 + h, dx1:dx1 + w] = sublayer.layer_grid[
-                                                            (overlap_y1 - grid_y1):(overlap_y2 - grid_y1):height_factor,
-                                                            (overlap_x1 - grid_x1):(overlap_x2 - grid_x1):width_factor]
-
-                # if sublayer.layer_grid.ndim == 1:
-                #     start_index_y = (overlap_y1 - grid_y1) % height_factor
-                #     subgrid_slice = sublayer.layer_grid[
-                #                     (overlap_y1 - grid_y1 - start_index_y):(overlap_y2 - grid_y1):height_factor]
-                # else:
-                #     start_index_y = (overlap_y1 - grid_y1) % height_factor
-                #     start_index_x = (overlap_x1 - grid_x1) % width_factor
-                #     subgrid_slice = sublayer.layer_grid[
-                #                     (overlap_y1 - grid_y1 - start_index_y):(overlap_y2 - grid_y1):height_factor,
-                #                     (overlap_x1 - grid_x1 - start_index_x):(overlap_x2 - grid_x1):width_factor]
-                #
-                # # # Determine the position in the output grid
-                # dx1 = (overlap_x1 - x1) // width_factor
-                # dy1 = (overlap_y1 - y1) // height_factor
-                # h, w = unpack_shape(subgrid_slice)
-                #
-                #
-                # print(w,h,slice_w,slice_h)
-                # if subgrid_slice.ndim == 1:
-                #     output_grid[dy1:dy1 + h, dx1:dx1 + w] = subgrid_slice[:, np.newaxis]
-                # else:
-                #     output_grid[dy1:dy1 + h, dx1:dx1 + w] = subgrid_slice
+                    buffer[dy1:dy1 + h, dx1:dx1 + w] = sublayer.layer_grid[
+                                                       (overlap_y1 - grid_y1):(overlap_y2 - grid_y1):height_factor,
+                                                       (overlap_x1 - grid_x1):(overlap_x2 - grid_x1):width_factor]
 
     def get_point_data(self, x1, y1):
         for sublayer in self.visible_layers:

@@ -6,14 +6,10 @@ from app.gui.widget import Widget
 
 
 class LayerItem:
-    def __init__(self, name, bounds, rows_count, columns_count, size, description):
-        self.name = name
+    def __init__(self, net_layer):
+        self.name = net_layer.name
         self.display_name = self.name.rsplit('.', 1)[-1]
-        self.bounds = bounds
-        self.rows_count = rows_count
-        self.columns_count = columns_count
-        self.size = size
-        self.description = description
+        self.bounds = net_layer.bounds
         self.children = []
         self.id = uuid.uuid4()
 
@@ -26,24 +22,15 @@ class LayerItem:
 
         self.hover_bounds = None
 
-    def calculate_bounds(self):
-        all_bounds = []
-        if self.bounds is None:
-            if len(self.children) == 0:
-                return None
+    @staticmethod
+    def from_net_layer(net_layer):
+        item = LayerItem(net_layer)
+        for s in net_layer.sub_layers:
+            item.children.append(LayerItem.from_net_layer(s))
+        return item
 
-            for c in self.children:
-                child_bounds = c.calculate_bounds()
-                if child_bounds is not None:
-                    all_bounds.append(child_bounds)
-            col_min = min(item[0] for item in all_bounds)
-            row_min = min(item[1] for item in all_bounds)
-            col_max = max(item[2] for item in all_bounds)
-            row_max = max(item[3] for item in all_bounds)
-
-            self.bounds = [col_min, row_min, col_max, row_max]
-            self.description = f"Size: {col_max - col_min}x{row_max - row_min}"
-        return self.bounds
+    def __repr__(self):
+        return f"{self.name} {self.bounds} {self.children}"
 
     def _render(self, on_hover, on_hover_end, on_jump, full_name=True, active_layer_name=None, level=0):
         layer = self
@@ -73,7 +60,6 @@ class LayerItem:
         if self.expanded:
             imgui.indent()
             imgui.dummy(0, 5)
-            imgui.text(layer.description)
             imgui.dummy(0, 5)
             if imgui.button(f"Jump##{layer.id}"):
                 on_jump(self)
@@ -103,10 +89,10 @@ class LayerItem:
                 c._render(on_hover, on_hover_end, on_jump, False, level=level + 1, active_layer_name=active_layer_name)
 
         if hovered is False and self.hovered:
-            #print("hover end", self.name, self.clicked)
+            # print("hover end", self.name, self.clicked)
             on_hover_end(self)
         elif hovered and not self.hovered:
-            #print("hover start", self.name)
+            # print("hover start", self.name)
             on_hover(self)
         self.hovered = hovered
 
@@ -123,69 +109,20 @@ class LayersView(Widget):
 
         self.hovering = False
 
-        self.weights_layers = []
-        self.model_tree = None
+        self.layers = []
 
         self.current_weights_id = None
         self.current_model_id = None
 
-    def _load_weights_layers(self):
-        self.flat_items = []
-        for l in self.n_net.layers:
-            self.flat_items.append(LayerItem(
-                name=l.name,
-                bounds=l.meta.bounds,
-                rows_count=l.meta.rows_count,
-                columns_count=l.meta.columns_count,
-                size=l.meta.size,
-                description=f"Size: {l.columns_count}x{l.rows_count} {l.size} elements"
-            ))
-
-    def _load_model_layers(self):
-        def fill_leaf(layer_item, component):
-            for c in component.components:
-                l = next((item for item in self.n_net.layers if item.name == c.name), None)
-                if l is None:
-                    item = LayerItem(
-                        name=c.name,
-                        bounds=None,
-                        rows_count=0,
-                        columns_count=0,
-                        size=None,
-                        description=None
-                    )
-                else:
-                    #print("layer name ", l.name)
-                    item = LayerItem(
-                        name=l.name,
-                        bounds=l.meta.bounds,
-                        rows_count=l.meta.rows_count,
-                        columns_count=l.meta.columns_count,
-                        size=l.meta.size,
-                        description=f"Size: {l.columns_count}x{l.rows_count} {l.size} elements"
-                    )
-                layer_item.children.append(item)
-                fill_leaf(item, c)
-
-        tree = self.config.model_parser.parsed_model
-        top_item = LayerItem(
-            name=tree.name,
-            bounds=None,
-            rows_count=0,
-            columns_count=0,
-            size=None,
-            description=None
-        )
-        fill_leaf(top_item, tree)
-        top_item.calculate_bounds()
-        self.model_tree = top_item
-
-
+    def _load_layers(self):
+        self.layers.clear()
+        for net_layer in self.n_net.net_layers:
+            self.layers.append(LayerItem.from_net_layer(net_layer))
 
     def on_hover(self, layer):
         if self.hover_id != layer.name:
             self.hover_id = layer.name
-            self.config.effects.show_quad(layer.name, layer.bounds)
+            self.config.effects.show_quad(layer.name)
             self.config.publish_hover_message(layer)
 
     def on_hover_end(self, layer):
@@ -200,26 +137,12 @@ class LayersView(Widget):
 
     def _content(self):
         self.hovering = False
-        if self.n_net.show_weights:
-            if self.n_net.loaded_data_id != self.current_weights_id:
-                self._load_weights_layers()
-                self.current_weights_id = self.n_net.loaded_data_id
-            if len(self.expanded) != len(self.flat_items):
-                self.expanded = {}
+        if self.current_model_id != self.config.model_parser.current_model_name:
+            self.current_model_id = self.config.model_parser.current_model_name
+            self._load_layers()
 
-            for i, layer in enumerate(self.flat_items):
-                layer._render(
-                    self.on_hover,
-                    self.on_hover_end,
-                    self.on_jump,
-                    active_layer_name=self.config.effects.raw_id
-                )
-
-        else:
-            if self.current_model_id != self.config.model_parser.parsed_model.name:
-                self._load_model_layers()
-                self.current_model_id = self.model_tree.name
-            self.model_tree._render(
+        for l in self.layers:
+            l._render(
                 self.on_hover,
                 self.on_hover_end,
                 self.on_jump,

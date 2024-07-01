@@ -42,7 +42,7 @@ class CameraAnimation:
         self.start_time = time.time()
         self.is_animating = True
 
-    def animate_to_node(self, x, y, duration=2.0):
+    def animate_to_node(self, x, y, duration=5.0):
         # Calculate the target width and height in world coordinates
 
         self.left = x

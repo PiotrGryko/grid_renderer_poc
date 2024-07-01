@@ -15,7 +15,7 @@ layout(location = 1) in vec2 tex_coord;
 layout(location = 2) in vec2 prev_tex_coord;
 
 uniform mat4 projection_matrix;
-uniform float tex_unit = 0; // 0 or 1 
+uniform int tex_unit = 0; // 0 or 1 
 
 
 out vec2 frag_tex_coord_one;
@@ -40,7 +40,7 @@ uniform sampler1D color_map;
 uniform sampler2D tex1;
 uniform sampler2D tex2;
 uniform float fading_factor = 0;
-uniform float tex_unit = 0; // 0 or 1 
+uniform int tex_unit = 0; // 0 or 1 
 uniform float tex_mix_factor = 0; // from 0 to 1 
  
 in vec2 frag_tex_coord_one;
@@ -94,7 +94,7 @@ uniform sampler1D color_map;
 uniform sampler2D billboard;
 uniform sampler2D tex1;
 uniform sampler2D tex2;
-uniform float tex_unit = 0; // 0 or 1 
+uniform int tex_unit = 0; // 0 or 1 
 
 uniform int texture_width;
 uniform int texture_height;
@@ -129,7 +129,7 @@ void main()
     
     float value_one = texelFetch(tex1, ivec2(x, y), 0).r;
     float value_two = texelFetch(tex2, ivec2(x, y), 0).r;
-    float value = mix(value_one, value_two, tex_unit);
+    float value = (tex_unit > 0.5) ? value_two : value_one;
     float scaled_x = x * factor;
     float scaled_y = y * factor;
     
@@ -341,7 +341,7 @@ class NShader:
 
     def select_texture(self, index):
         tex_unit = gl.glGetUniformLocation(self.shader_program, "tex_unit")
-        gl.glUniform1f(tex_unit, index)
+        gl.glUniform1i(tex_unit, index)
 
     def mix_textures(self, factor):
         tex_mix_factor = gl.glGetUniformLocation(self.shader_program, "tex_mix_factor")

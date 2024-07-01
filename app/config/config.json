@@ -1,22 +1,22 @@
 {
-    "color_name": "gnuplot",
-    "buffer_width": 2500,
-    "buffer_height": 2500,
-    "enable_blend": true,
+    "color_name": "nipy_spectral",
+    "buffer_width": 4000,
+    "buffer_height": 4000,
+    "enable_blend": false,
     "power_of_two": true,
-    "last_directory": "/Users/piotrgryko/PycharmProjects/Models/llava-hf_llava-v1.6-mistral-7b-hf",
-    "model_directory": "/Users/piotrgryko/PycharmProjects/Models/llava-hf_llava-v1.6-mistral-7b-hf",
+    "last_directory": "/Users/piotrgryko/PycharmProjects/Models/Helsinki-NLP_opus-mt-pl-en",
+    "model_directory": "/Users/piotrgryko/PycharmProjects/Models/Helsinki-NLP_opus-mt-pl-en",
     "gui_state_config": {
         "Layers": {
-            "opened": false,
+            "opened": true,
             "width": 250,
-            "height": 1280.0,
+            "height": 1323.0,
             "view_type": 2
         },
         "Terminal": {
-            "opened": false,
+            "opened": true,
             "width": 2448.0,
-            "height": 330.75,
+            "height": -63,
             "view_type": 3,
             "type": 1
         },
@@ -29,5 +29,5 @@
     },
     "window_width": 2448,
     "window_height": 1323,
-    "show_weights": true
+    "show_weights": false
 }

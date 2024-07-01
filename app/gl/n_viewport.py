@@ -1,6 +1,8 @@
 import math
 import time
 
+from app.gl.n_frame_producer import NFrameProducer
+
 
 class VisibleGrid:
     """
@@ -57,25 +59,16 @@ class VisibleGrid:
             self.factor)
         return chunks, dimensions
 
-    def grab_visible_data_patch(self):
+    def update_scene_buffer_directly(self, buffer, cancellation_signal):
         # Grab the numpy data
-        chunks, dimensions = self.n_net.get_subgrid_patch(
-            self.x1,
-            self.y1,
-            self.x2,
-            self.y2,
-            self.factor)
-        return chunks, dimensions
-
-    def update_scene_buffer_directly(self, buffer):
-        # Grab the numpy data
-        self.n_net.update_buffer_directly(
+        self.n_net.update_tex_buffer_directly(
             self.x1,
             self.y1,
             self.x2,
             self.y2,
             self.factor,
-            buffer)
+            buffer,
+            cancellation_signal)
 
     def get_quad_position(self, width, height):
         # The quad x1,y1,x2,y2 is always 0,0,width,height
@@ -105,7 +98,7 @@ class VisibleGrid:
 
 
 class NViewport:
-    def __init__(self, n_net, viewport_w, viewport_h):
+    def __init__(self, n_net, n_buffer, n_frame_producer):
         self.visible_data = None
         self.n_net = n_net
         # bounds of the entire world
@@ -113,13 +106,13 @@ class NViewport:
         self.world_y1 = 0
         self.world_x2 = 0
         self.world_y2 = 0
-        self.viewport_w = viewport_w
-        self.viewport_h = viewport_h
+        self.n_buffer = n_buffer
 
         self.current_factor = None
         self.current_factor_delta = None
         self.current_factor_half_delta = 1
         self.power_of_two = True
+        self.frame_producer = n_frame_producer
 
     def set_grid_size(self, width, height):
         self.world_x2 = width
@@ -141,8 +134,8 @@ class NViewport:
         subgrid_width = min(col_max - col_min, self.n_net.total_width)
         subgrid_height = min(row_max - row_min, self.n_net.total_height)
 
-        target_width = self.viewport_w
-        target_height = self.viewport_h
+        target_width = self.n_buffer.viewport_width
+        target_height = self.n_buffer.viewport_height
 
         width_factor = max(subgrid_width / target_width, 0.1)
         height_factor = max(subgrid_height / target_height, 0.1)
@@ -196,6 +189,7 @@ class NViewport:
                 factor,
                 zoom,
                 self.n_net)
+            self.frame_producer.create_frame(self.visible_data)
             updated = True
 
         if updated:
